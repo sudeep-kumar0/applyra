@@ -13,8 +13,12 @@ export class SupabaseService {
       this.configService.get<string>('SUPABASE_URL') ||
       'https://mytywaubhmpmyyblofri.supabase.co';
     const supabaseAnonKey =
-      this.configService.get<string>('SUPABASE_ANON_KEY') || 'mock-anon-key-for-dev';
-    const supabaseServiceKey = this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
+      this.configService.get<string>('SUPABASE_PUBLISHABLE_KEY') ||
+      this.configService.get<string>('SUPABASE_ANON_KEY') ||
+      'mock-anon-key-for-dev';
+    const supabaseServiceKey =
+      this.configService.get<string>('SUPABASE_SECRET_KEY') ||
+      this.configService.get<string>('SUPABASE_SERVICE_ROLE_KEY');
 
     this.supabaseClient = createClient(supabaseUrl, supabaseAnonKey, {
       auth: {
@@ -30,10 +34,10 @@ export class SupabaseService {
           autoRefreshToken: false,
         },
       });
-      this.logger.log('Supabase Admin client initialized with Service Role Key.');
+      this.logger.log('Supabase Admin client initialized with Secret / Service Role Key.');
     } else {
       this.logger.warn(
-        'SUPABASE_SERVICE_ROLE_KEY not configured. Administrative storage/auth operations will use standard client.',
+        'SUPABASE_SECRET_KEY / SERVICE_ROLE_KEY not configured. Administrative operations will use standard client.',
       );
     }
   }
