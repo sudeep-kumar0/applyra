@@ -14,6 +14,6 @@ import { UsersModule } from '../users/users.module';
   ],
   controllers: [JobsController],
   providers: [JobsService],
-  exports: [JobsService],
+  exports: [JobsService, MongooseModule],
 })
 export class JobsModule {}

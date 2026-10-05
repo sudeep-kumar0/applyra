@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { fetchApi } from '@/lib/api';
 import ContextualAuthModal, { ContextualAuthType } from '@/components/ContextualAuthModal';
+import DidYouApplyModal from '@/components/DidYouApplyModal';
 import {
   ArrowLeft,
   MapPin,
@@ -16,14 +18,19 @@ import {
   ShieldCheck,
   Building2,
   CheckCircle,
+  AlertTriangle,
+  Globe,
+  Share2,
 } from 'lucide-react';
 
 interface JobDetail {
+  _id?: string;
+  id?: string;
   title: string;
   slug: string;
   company: string;
   description: string;
-  responsibilities: string[];
+  responsibilities?: string[];
   skills: string[];
   preferredSkills?: string[];
   qualifications?: string[];
@@ -48,9 +55,9 @@ const FALLBACK_JOBS_MAP: Record<string, JobDetail> = {
     experience: '1-3 years',
     workMode: 'Hybrid',
     jobType: 'Full-time',
-    category: 'Java Developer',
-    source: 'Company Careers',
-    originalUrl: 'https://careers.tcs.com/jobs/java-fullstack-dev-blr',
+    category: 'Software',
+    source: 'Company Career Website',
+    originalUrl: 'https://careers.tcs.com',
     postedAt: '2 hours ago',
     description:
       'We are seeking a talented Java Full Stack Developer to build enterprise banking solutions. You will work with modern Spring Boot microservices, Angular/React interfaces, and cloud-native architectures.',
@@ -77,9 +84,9 @@ const FALLBACK_JOBS_MAP: Record<string, JobDetail> = {
     experience: '2-4 years',
     workMode: 'Remote',
     jobType: 'Full-time',
-    category: 'Frontend Developer',
-    source: 'Company Careers',
-    originalUrl: 'https://careers.swiggy.com/jobs/frontend-engineer-react',
+    category: 'Software',
+    source: 'LinkedIn',
+    originalUrl: 'https://careers.swiggy.com',
     postedAt: '5 hours ago',
     description:
       'Join Swiggy Consumer Engineering team to create ultra-fast, delightful web experiences for millions of daily active users ordering food and groceries.',
@@ -105,9 +112,9 @@ const FALLBACK_JOBS_MAP: Record<string, JobDetail> = {
     experience: '2-5 years',
     workMode: 'Hybrid',
     jobType: 'Full-time',
-    category: 'Backend Developer',
-    source: 'Company Careers',
-    originalUrl: 'https://razorpay.com/jobs/backend-engineer-node',
+    category: 'Software',
+    source: 'Naukri',
+    originalUrl: 'https://razorpay.com',
     postedAt: '12 hours ago',
     description:
       'Scale Razorpay payment gateway infrastructure. Design low-latency financial systems handling billions of transactions per month with 99.999% uptime.',
@@ -126,8 +133,9 @@ const FALLBACK_JOBS_MAP: Record<string, JobDetail> = {
   },
 };
 
-export default function JobDetailPage() {
+function JobDetailContent() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const router = useRouter();
   const slug = params?.slug as string;
   const { user } = useAuth();
@@ -135,15 +143,20 @@ export default function JobDetailPage() {
   const [job, setJob] = useState<JobDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [isSaved, setIsSaved] = useState(false);
+  const [copiedLink, setCopiedLink] = useState(false);
 
   // Contextual auth state
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalType, setAuthModalType] = useState<ContextualAuthType>('save_job');
 
+  // Did you apply modal state
+  const [applyModalOpen, setApplyModalOpen] = useState(false);
+
   useEffect(() => {
     async function loadJob() {
       try {
-        const res = await fetch(`http://localhost:5000/api/v1/jobs/${slug}`);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+        const res = await fetch(`${apiUrl}/jobs/${slug}`);
         if (res.ok) {
           const data = await res.json();
           if (data && data.job) {
@@ -163,26 +176,26 @@ export default function JobDetailPage() {
         setJob({
           title: slug.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()),
           slug,
-          company: 'Partner Enterprise',
+          company: 'Verified Partner Employer',
           location: 'Bengaluru / Remote',
-          salary: 'Competitive Salary',
+          salary: '₹8–16 LPA',
           experience: '1-3 years',
           workMode: 'Hybrid',
           jobType: 'Full-time',
-          category: 'Software Engineering',
-          source: 'Company Careers',
+          category: 'Software',
+          source: 'Company Career Website',
           originalUrl: 'https://careers.google.com',
           postedAt: 'Recently',
           description:
-            'Exciting opportunity to build resilient software systems and modern web applications.',
+            'Exciting opportunity to build resilient software systems and modern web applications with cutting-edge technologies.',
           responsibilities: [
-            'Develop core software features and scalable APIs',
-            'Collaborate with product and design teams',
-            'Maintain high code quality through automated testing',
+            'Develop core software features and scalable cloud services',
+            'Collaborate with product and design teams in high-paced agile sprints',
+            'Maintain high code quality through automated testing and continuous integration',
           ],
-          skills: ['TypeScript', 'Node.js', 'React', 'Git', 'SQL'],
-          preferredSkills: ['Cloud Infrastructure', 'Docker'],
-          qualifications: ["Bachelor's degree or equivalent technical experience"],
+          skills: ['TypeScript', 'Node.js', 'React', 'Git', 'SQL', 'Docker'],
+          preferredSkills: ['Cloud Infrastructure', 'Microservices'],
+          qualifications: ["Bachelor's degree or equivalent technical experience in computer science or related field"],
         });
       }
       setLoading(false);
@@ -206,24 +219,80 @@ export default function JobDetailPage() {
       setAuthModalOpen(true);
       return;
     }
-    alert(`Checking resume match for ${job?.title}`);
+    router.push(`/resume?job=${encodeURIComponent(job?.slug || '')}`);
   };
 
-  const handleApply = () => {
+  const handleApply = async () => {
+    if (!job?.originalUrl || !job.originalUrl.startsWith('http')) {
+      alert('Unable to proceed: Original application URL is invalid or missing.');
+      return;
+    }
+
     if (!user) {
       setAuthModalType('apply_track');
       setAuthModalOpen(true);
       return;
     }
-    if (job?.originalUrl) {
-      window.open(job.originalUrl, '_blank', 'noopener,noreferrer');
+
+    // Authenticated apply flow:
+    // 1. Record apply attempt in MongoDB via click tracking
+    try {
+      await fetchApi('/applications/click', {
+        method: 'POST',
+        body: JSON.stringify({ jobId: job._id || job.slug }),
+      });
+    } catch (err) {
+      console.warn('Could not record apply click to MongoDB:', err);
+    }
+
+    // 2. Open official external application link in a new tab
+    window.open(job.originalUrl, '_blank', 'noopener,noreferrer');
+
+    // 3. Prompt user with "Did you apply for this job?" modal
+    setApplyModalOpen(true);
+  };
+
+  const handleShare = () => {
+    if (typeof window !== 'undefined') {
+      navigator.clipboard.writeText(window.location.href);
+      setCopiedLink(true);
+      setTimeout(() => setCopiedLink(false), 2000);
+    }
+  };
+
+  // Back button preserves search query params
+  const handleBackToSearch = () => {
+    const q = searchParams.toString();
+    if (q) {
+      router.push(`/jobs?${q}`);
+    } else {
+      router.back();
+    }
+  };
+
+  const sourceBadgeColor = (source: string) => {
+    switch (source?.toLowerCase()) {
+      case 'linkedin':
+        return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-900';
+      case 'naukri':
+        return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-900';
+      case 'indeed':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-900';
+      case 'foundit':
+        return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-900';
+      case 'apna':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900';
+      case 'workday':
+        return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
     }
   };
 
   if (loading) {
     return (
       <div className="min-h-screen py-16 flex items-center justify-center text-slate-500">
-        Loading job listing...
+        Loading job listing details...
       </div>
     );
   }
@@ -231,52 +300,80 @@ export default function JobDetailPage() {
   if (!job) {
     return (
       <div className="min-h-screen py-16 text-center">
-        <h2 className="text-xl font-bold">Job Not Found</h2>
-        <Link href="/jobs" className="mt-4 inline-block text-brand-600">
+        <h2 className="text-xl font-bold text-slate-900 dark:text-white">Job Not Found</h2>
+        <p className="text-sm text-slate-500 mt-2">The requested listing may have expired or been removed.</p>
+        <button
+          onClick={handleBackToSearch}
+          className="mt-4 inline-block text-brand-600 hover:underline text-sm font-semibold"
+        >
           ← Back to all jobs
-        </Link>
+        </button>
       </div>
     );
   }
 
+  const isUrlValid = Boolean(job.originalUrl && job.originalUrl.startsWith('http'));
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-10">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Back navigation */}
-        <Link
-          href="/jobs"
-          className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 mb-6 transition"
-        >
-          <ArrowLeft className="w-4 h-4" />
-          <span>Back to Jobs Search</span>
-        </Link>
+        {/* Back navigation preserving search parameters */}
+        <div className="flex items-center justify-between mb-6">
+          <button
+            onClick={handleBackToSearch}
+            className="inline-flex items-center gap-2 text-sm text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 transition"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            <span>Back to Jobs Search</span>
+          </button>
+
+          <button
+            onClick={handleShare}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+          >
+            <Share2 className="w-3.5 h-3.5" />
+            <span>{copiedLink ? 'Link Copied!' : 'Share'}</span>
+          </button>
+        </div>
 
         {/* Hero Card */}
         <div className="p-6 md:p-8 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm mb-8">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-            <div>
-              <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="space-y-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {/* Prominent Source Badge */}
+                <span
+                  className={`px-3 py-1 rounded-lg text-xs font-bold border ${sourceBadgeColor(
+                    job.source,
+                  )} flex items-center gap-1.5`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  Source: {job.source || 'Company Career Website'}
+                </span>
+
                 <span className="px-3 py-1 rounded-full text-xs font-semibold bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300">
                   {job.workMode}
                 </span>
                 <span className="px-3 py-1 rounded-full text-xs font-semibold bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                   {job.jobType}
                 </span>
-                <span className="text-xs text-slate-400">
-                  Source: <strong className="text-slate-600 dark:text-slate-300">{job.source}</strong>
-                </span>
+                {job.category && (
+                  <span className="px-3 py-1 rounded-full text-xs font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                    {job.category}
+                  </span>
+                )}
               </div>
 
               <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
                 {job.title}
               </h1>
 
-              <div className="mt-2 flex items-center gap-2 text-slate-600 dark:text-slate-300 text-base font-medium">
+              <div className="flex items-center gap-2 text-slate-700 dark:text-slate-300 text-base font-semibold">
                 <Building2 className="w-4 h-4 text-slate-400" />
                 <span>{job.company}</span>
               </div>
 
-              <div className="mt-4 flex flex-wrap gap-4 text-xs text-slate-600 dark:text-slate-400">
+              <div className="flex flex-wrap gap-4 text-xs text-slate-600 dark:text-slate-400 pt-1">
                 <span className="flex items-center gap-1.5">
                   <MapPin className="w-4 h-4 text-slate-400" />
                   {job.location}
@@ -288,18 +385,31 @@ export default function JobDetailPage() {
                 <span className="font-semibold text-slate-900 dark:text-white">
                   {job.salary}
                 </span>
+                {job.postedAt && (
+                  <span className="flex items-center gap-1.5 text-slate-400">
+                    <Clock className="w-3.5 h-3.5" />
+                    Posted {job.postedAt.includes('T') ? new Date(job.postedAt).toLocaleDateString() : job.postedAt}
+                  </span>
+                )}
               </div>
             </div>
 
             {/* Action Buttons Column */}
-            <div className="flex flex-col sm:flex-row md:flex-col gap-3 min-w-[200px]">
-              <button
-                onClick={handleApply}
-                className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md transition"
-              >
-                <span>Apply Now</span>
-                <ExternalLink className="w-4 h-4" />
-              </button>
+            <div className="flex flex-col sm:flex-row md:flex-col gap-3 min-w-[220px]">
+              {isUrlValid ? (
+                <button
+                  onClick={handleApply}
+                  className="w-full inline-flex items-center justify-center gap-2 px-6 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-sm shadow-md transition"
+                >
+                  <span>Apply on {job.source || 'Official Site'}</span>
+                  <ExternalLink className="w-4 h-4" />
+                </button>
+              ) : (
+                <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                  <span>Original link unavailable</span>
+                </div>
+              )}
 
               <button
                 onClick={handleResumeMatch}
@@ -318,7 +428,7 @@ export default function JobDetailPage() {
                 }`}
               >
                 <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-brand-600' : ''}`} />
-                <span>{isSaved ? 'Saved to Profile' : 'Save Job'}</span>
+                <span>{isSaved ? 'Saved to Pipeline' : 'Save Job'}</span>
               </button>
             </div>
           </div>
@@ -332,7 +442,7 @@ export default function JobDetailPage() {
               <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4">
                 About the Role
               </h2>
-              <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+              <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-line">
                 {job.description}
               </p>
 
@@ -380,7 +490,7 @@ export default function JobDetailPage() {
                 Required Technical Skills
               </h3>
               <div className="flex flex-wrap gap-1.5">
-                {job.skills.map((skill) => (
+                {job.skills?.map((skill) => (
                   <span
                     key={skill}
                     className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300 border border-brand-100 dark:border-brand-900"
@@ -416,7 +526,7 @@ export default function JobDetailPage() {
                 <span>Legitimate Source Guarantee</span>
               </div>
               <p className="text-slate-600 dark:text-slate-400 leading-relaxed">
-                Applyra directs you directly to the verified employer portal. No automated form scripts or credential requests.
+                Applyra provides direct links to verified job portals ({job.source || 'Company Portal'}). We never request confidential passwords or perform unauthorized automated form submissions.
               </p>
             </div>
           </div>
@@ -436,6 +546,24 @@ export default function JobDetailPage() {
           }
         }}
       />
+
+      {/* Did You Apply? Confirmation Modal */}
+      <DidYouApplyModal
+        isOpen={applyModalOpen}
+        job={job}
+        onClose={() => setApplyModalOpen(false)}
+        onConfirmed={() => {
+          // Application successfully saved and confirmed as APPLIED in MongoDB
+        }}
+      />
     </div>
+  );
+}
+
+export default function JobDetailPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen py-16 text-center text-slate-500">Loading job details...</div>}>
+      <JobDetailContent />
+    </Suspense>
   );
 }

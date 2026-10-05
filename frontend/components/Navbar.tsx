@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import Logo from './Logo';
 import { useAuth } from '@/context/AuthContext';
+import { fetchApi } from '@/lib/api';
 import {
   Menu,
   X,
@@ -17,13 +18,31 @@ import {
   BarChart3,
   Shield,
   ChevronDown,
+  CheckCircle,
+  ExternalLink,
+  Check,
 } from 'lucide-react';
+
+interface NotificationItem {
+  _id: string;
+  title: string;
+  message: string;
+  type: string;
+  read: boolean;
+  createdAt: string;
+  link?: string;
+}
 
 export default function Navbar() {
   const { user, mongoUser, isAdmin, logout } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+
+  // Notifications State
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [unreadCount, setUnreadCount] = useState<number>(0);
 
   const publicNavLinks = [
     { label: 'Find Jobs', href: '/jobs' },
@@ -42,6 +61,57 @@ export default function Navbar() {
   ];
 
   const activeLinks = user ? authNavLinks : publicNavLinks;
+
+  // Fetch notifications
+  const loadNotifications = useCallback(async () => {
+    if (!user) return;
+    try {
+      const [listRes, countRes] = await Promise.all([
+        fetchApi('/notifications?limit=15').catch(() => null),
+        fetchApi('/notifications/unread-count').catch(() => null),
+      ]);
+
+      if (listRes && Array.isArray(listRes.notifications)) {
+        setNotifications(listRes.notifications);
+      }
+      if (countRes && typeof countRes.unreadCount === 'number') {
+        setUnreadCount(countRes.unreadCount);
+      }
+    } catch (err) {
+      console.warn('Failed to load notifications:', err);
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user) {
+      loadNotifications();
+      const interval = setInterval(loadNotifications, 30000); // 30s poll
+      return () => clearInterval(interval);
+    }
+  }, [user, loadNotifications]);
+
+  const handleMarkAsRead = async (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    try {
+      await fetchApi(`/notifications/${id}/read`, { method: 'PATCH' });
+      setNotifications((prev) =>
+        prev.map((n) => (n._id === id ? { ...n, read: true } : n)),
+      );
+      setUnreadCount((c) => Math.max(0, c - 1));
+    } catch (err) {
+      console.warn('Error marking notification read:', err);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await fetchApi('/notifications/mark-all-read', { method: 'POST' });
+      setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.warn('Error marking all notifications read:', err);
+    }
+  };
 
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-200/80 dark:border-slate-800 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md">
@@ -77,6 +147,13 @@ export default function Navbar() {
             {!user ? (
               <>
                 <Link
+                  href="/admin/login"
+                  className="px-3 py-1.5 text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition"
+                  title="Admin Access Only"
+                >
+                  Admin Portal
+                </Link>
+                <Link
                   href="/login"
                   className="px-4 py-2 text-sm font-medium text-slate-700 dark:text-slate-200 hover:text-brand-600 dark:hover:text-brand-400 transition"
                 >
@@ -90,84 +167,211 @@ export default function Navbar() {
                 </Link>
               </>
             ) : (
-              <div className="relative">
-                <button
-                  onClick={() => setUserDropdownOpen(!userDropdownOpen)}
-                  className="flex items-center space-x-2 p-1.5 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
-                >
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-600 to-teal-500 flex items-center justify-center text-white text-xs font-bold uppercase">
-                    {user.email ? user.email[0] : 'U'}
-                  </div>
-                  <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400 mr-1" />
-                </button>
-
-                {/* Dropdown Menu */}
-                {userDropdownOpen && (
-                  <div
-                    onMouseLeave={() => setUserDropdownOpen(false)}
-                    className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-2 z-50 animate-in fade-in zoom-in-95 duration-150"
+              <div className="flex items-center space-x-2">
+                {/* Notifications Bell Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setNotificationsOpen(!notificationsOpen);
+                      setUserDropdownOpen(false);
+                    }}
+                    className="relative p-2 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
+                    aria-label="View notifications"
                   >
-                    <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800">
-                      <p className="text-xs text-slate-400">Signed in as</p>
-                      <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
-                        {user.email}
-                      </p>
-                      {isAdmin && (
-                        <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 rounded">
-                          ADMINISTRATOR
-                        </span>
-                      )}
-                    </div>
-
-                    <Link
-                      href="/dashboard"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    >
-                      <LayoutDashboard className="w-4 h-4 mr-2.5 text-slate-400" />
-                      Dashboard
-                    </Link>
-
-                    <Link
-                      href="/profile"
-                      onClick={() => setUserDropdownOpen(false)}
-                      className="flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
-                    >
-                      <User className="w-4 h-4 mr-2.5 text-slate-400" />
-                      Profile & Skills
-                    </Link>
-
-                    {isAdmin && (
-                      <Link
-                        href="/admin"
-                        onClick={() => setUserDropdownOpen(false)}
-                        className="flex items-center px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/40"
-                      >
-                        <Shield className="w-4 h-4 mr-2.5" />
-                        Admin Console
-                      </Link>
+                    <Bell className="w-4 h-4" />
+                    {unreadCount > 0 && (
+                      <span className="absolute -top-1 -right-1 px-1.5 py-0.5 rounded-full text-[10px] font-black bg-rose-600 text-white leading-none shadow-sm animate-pulse">
+                        {unreadCount > 9 ? '9+' : unreadCount}
+                      </span>
                     )}
+                  </button>
 
-                    <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
-
-                    <button
-                      onClick={() => {
-                        setUserDropdownOpen(false);
-                        logout();
-                      }}
-                      className="w-full text-left flex items-center px-4 py-2.5 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                  {/* Notifications Popover */}
+                  {notificationsOpen && (
+                    <div
+                      onMouseLeave={() => setNotificationsOpen(false)}
+                      className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 py-2 z-50 animate-in fade-in zoom-in-95 duration-150"
                     >
-                      <LogOut className="w-4 h-4 mr-2.5" />
-                      Sign Out
-                    </button>
-                  </div>
-                )}
+                      <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                            Notifications
+                          </span>
+                          {unreadCount > 0 && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+                              {unreadCount} unread
+                            </span>
+                          )}
+                        </div>
+                        {unreadCount > 0 && (
+                          <button
+                            onClick={handleMarkAllRead}
+                            className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                          >
+                            Mark all as read
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
+                        {notifications.length === 0 ? (
+                          <div className="p-6 text-center text-xs text-slate-400">
+                            No notifications yet. Activity updates will appear here.
+                          </div>
+                        ) : (
+                          notifications.map((n) => (
+                            <div
+                              key={n._id}
+                              className={`p-3 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/60 transition flex items-start justify-between gap-3 ${
+                                !n.read ? 'bg-brand-50/30 dark:bg-brand-950/20' : ''
+                              }`}
+                            >
+                              <div className="space-y-1 flex-1">
+                                <div className="flex items-center gap-1.5">
+                                  {!n.read && (
+                                    <span className="w-2 h-2 rounded-full bg-brand-600 flex-shrink-0" />
+                                  )}
+                                  <h4 className="font-bold text-slate-900 dark:text-white">
+                                    {n.title}
+                                  </h4>
+                                </div>
+                                <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
+                                  {n.message}
+                                </p>
+                                <span className="text-[10px] text-slate-400 block">
+                                  {new Date(n.createdAt).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    day: 'numeric',
+                                    month: 'short',
+                                  })}
+                                </span>
+                              </div>
+
+                              {!n.read && (
+                                <button
+                                  onClick={(e) => handleMarkAsRead(n._id, e)}
+                                  className="p-1 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                                  title="Mark as read"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          ))
+                        )}
+                      </div>
+
+                      <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-center">
+                        <Link
+                          href="/applications"
+                          onClick={() => setNotificationsOpen(false)}
+                          className="text-xs font-semibold text-brand-600 hover:underline"
+                        >
+                          View Application Tracker →
+                        </Link>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* User Dropdown */}
+                <div className="relative">
+                  <button
+                    onClick={() => {
+                      setUserDropdownOpen(!userDropdownOpen);
+                      setNotificationsOpen(false);
+                    }}
+                    className="flex items-center space-x-2 p-1.5 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                  >
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-600 to-teal-500 flex items-center justify-center text-white text-xs font-bold uppercase">
+                      {user.email ? user.email[0] : 'U'}
+                    </div>
+                    <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400 mr-1" />
+                  </button>
+
+                  {/* Dropdown Menu */}
+                  {userDropdownOpen && (
+                    <div
+                      onMouseLeave={() => setUserDropdownOpen(false)}
+                      className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-2 z-50 animate-in fade-in zoom-in-95 duration-150"
+                    >
+                      <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800">
+                        <p className="text-xs text-slate-400">Signed in as</p>
+                        <p className="text-sm font-semibold text-slate-800 dark:text-slate-200 truncate">
+                          {user.email}
+                        </p>
+                        {isAdmin && (
+                          <span className="inline-block mt-1 px-2 py-0.5 text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 rounded">
+                            ADMINISTRATOR
+                          </span>
+                        )}
+                      </div>
+
+                      <Link
+                        href="/dashboard"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <LayoutDashboard className="w-4 h-4 mr-2.5 text-slate-400" />
+                        Dashboard
+                      </Link>
+
+                      <Link
+                        href="/applications"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <FileText className="w-4 h-4 mr-2.5 text-slate-400" />
+                        Applications
+                      </Link>
+
+                      <Link
+                        href="/profile"
+                        onClick={() => setUserDropdownOpen(false)}
+                        className="flex items-center px-4 py-2.5 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <User className="w-4 h-4 mr-2.5 text-slate-400" />
+                        Profile & Skills
+                      </Link>
+
+                      {isAdmin && (
+                        <Link
+                          href="/admin"
+                          onClick={() => setUserDropdownOpen(false)}
+                          className="flex items-center px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400 font-semibold hover:bg-amber-50 dark:hover:bg-amber-950/40"
+                        >
+                          <Shield className="w-4 h-4 mr-2.5" />
+                          Admin Console
+                        </Link>
+                      )}
+
+                      <div className="border-t border-slate-100 dark:border-slate-800 my-1" />
+
+                      <button
+                        onClick={() => {
+                          setUserDropdownOpen(false);
+                          logout();
+                        }}
+                        className="w-full text-left flex items-center px-4 py-2.5 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
+                      >
+                        <LogOut className="w-4 h-4 mr-2.5" />
+                        Sign Out
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
 
           {/* Mobile hamburger */}
-          <div className="flex md:hidden items-center">
+          <div className="flex md:hidden items-center space-x-2">
+            {user && unreadCount > 0 && (
+              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-600 text-white">
+                {unreadCount}
+              </span>
+            )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
@@ -209,6 +413,13 @@ export default function Navbar() {
               >
                 Get Started
               </Link>
+              <Link
+                href="/admin/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="w-full py-2 text-center text-xs text-slate-500 hover:text-slate-700 dark:hover:text-slate-300"
+              >
+                Admin Console Login
+              </Link>
             </div>
           ) : (
             <div className="pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2">
@@ -223,6 +434,13 @@ export default function Navbar() {
                 Dashboard
               </Link>
               <Link
+                href="/applications"
+                onClick={() => setMobileMenuOpen(false)}
+                className="block px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+              >
+                Application Tracker
+              </Link>
+              <Link
                 href="/profile"
                 onClick={() => setMobileMenuOpen(false)}
                 className="block px-3 py-2 text-sm text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
@@ -233,7 +451,7 @@ export default function Navbar() {
                 <Link
                   href="/admin"
                   onClick={() => setMobileMenuOpen(false)}
-                  className="block px-3 py-2 text-sm text-amber-600 font-medium hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg"
+                  className="block px-3 py-2 text-sm text-amber-600 font-semibold hover:bg-amber-50 dark:hover:bg-amber-950/40 rounded-lg"
                 >
                   Admin Console
                 </Link>

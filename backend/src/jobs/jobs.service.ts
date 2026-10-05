@@ -311,7 +311,11 @@ export class JobsService implements OnModuleInit {
     }
 
     if (params.category && params.category !== 'All') {
-      query.category = params.category;
+      const escapedCategory = params.category
+        .trim()
+        .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+        .replace(/\//g, '\\s*\\/\\s*');
+      query.category = { $regex: escapedCategory, $options: 'i' };
     }
 
     if (params.workMode && params.workMode !== 'All') {
@@ -327,7 +331,11 @@ export class JobsService implements OnModuleInit {
     }
 
     if (params.source && params.source !== 'All') {
-      query.source = params.source;
+      let sourcePattern = params.source.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      if (params.source.toLowerCase().includes('company')) {
+        sourcePattern = 'Company Career';
+      }
+      query.source = { $regex: sourcePattern, $options: 'i' };
     }
 
     let sortOption: any = { postedAt: -1 }; // Default Most Recent
@@ -360,17 +368,189 @@ export class JobsService implements OnModuleInit {
     }
 
     if (!job) {
+      // Also try inactive if admin/checking
+      job = await this.jobModel.findOne({ slug: identifier }).exec();
+    }
+
+    if (!job) {
       throw new NotFoundException(`Job listing '${identifier}' not found`);
     }
 
     return job;
   }
 
+  async createJob(jobData: Partial<Job>): Promise<JobDocument> {
+    const slugBase = `${jobData.title || 'job'}-${jobData.company || 'company'}`
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/(^-|-$)+/g, '');
+
+    let slug = slugBase;
+    const existing = await this.jobModel.findOne({ slug });
+    if (existing) {
+      slug = `${slugBase}-${Date.now().toString().slice(-5)}`;
+    }
+
+    const newJob = new this.jobModel({
+      ...jobData,
+      slug,
+      postedAt: jobData.postedAt || new Date(),
+      isActive: jobData.isActive !== undefined ? jobData.isActive : true,
+    });
+
+    return newJob.save();
+  }
+
+  async updateJob(id: string, updateData: Partial<Job>): Promise<JobDocument> {
+    let job: JobDocument | null = null;
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      job = await this.jobModel.findById(id);
+    }
+    if (!job) {
+      job = await this.jobModel.findOne({ slug: id });
+    }
+
+    if (!job) {
+      throw new NotFoundException(`Job listing '${id}' not found`);
+    }
+
+    delete (updateData as any)._id;
+    delete (updateData as any).slug; // preserve existing URL slug
+
+    Object.assign(job, updateData);
+    return job.save();
+  }
+
+  async toggleActive(id: string): Promise<JobDocument> {
+    const job = await this.findBySlugOrId(id);
+    job.isActive = !job.isActive;
+    return job.save();
+  }
+
+  async deleteJob(id: string): Promise<{ success: boolean; message: string }> {
+    let result: any;
+    if (id.match(/^[0-9a-fA-F]{24}$/)) {
+      result = await this.jobModel.findByIdAndDelete(id);
+    } else {
+      result = await this.jobModel.findOneAndDelete({ slug: id });
+    }
+
+    if (!result) {
+      throw new NotFoundException(`Job listing '${id}' not found`);
+    }
+
+    return { success: true, message: 'Job listing deleted successfully' };
+  }
+
+  async getAllAdminJobs(params: {
+    search?: string;
+    source?: string;
+    category?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  }): Promise<{ jobs: JobDocument[]; total: number; page: number; totalPages: number }> {
+    const page = Math.max(1, Number(params.page) || 1);
+    const limit = Math.min(100, Math.max(1, Number(params.limit) || 20));
+    const skip = (page - 1) * limit;
+
+    const query: any = {};
+
+    if (params.search && params.search.trim()) {
+      const term = params.search.trim();
+      query.$or = [
+        { title: { $regex: term, $options: 'i' } },
+        { company: { $regex: term, $options: 'i' } },
+        { location: { $regex: term, $options: 'i' } },
+        { skills: { $in: [new RegExp(term, 'i')] } },
+      ];
+    }
+
+    if (params.source && params.source !== 'All') {
+      query.source = { $regex: params.source, $options: 'i' };
+    }
+
+    if (params.category && params.category !== 'All') {
+      query.category = { $regex: params.category, $options: 'i' };
+    }
+
+    if (params.status && params.status !== 'All') {
+      query.isActive = params.status === 'Active';
+    }
+
+    const [jobs, total] = await Promise.all([
+      this.jobModel.find(query).sort({ postedAt: -1, createdAt: -1 }).skip(skip).limit(limit).exec(),
+      this.jobModel.countDocuments(query),
+    ]);
+
+    return {
+      jobs,
+      total,
+      page,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  async getSourcesStats(): Promise<{ source: string; count: number }[]> {
+    const defaultSources = [
+      'LinkedIn',
+      'Naukri',
+      'Indeed',
+      'Foundit',
+      'Apna',
+      'Workday',
+      'Company Career Website',
+      'Other',
+    ];
+
+    const aggregated = await this.jobModel.aggregate([
+      { $match: { isActive: true } },
+      { $group: { _id: '$source', count: { $sum: 1 } } },
+    ]);
+
+    const countMap = new Map<string, number>();
+    for (const item of aggregated) {
+      countMap.set(item._id, item.count);
+    }
+
+    return defaultSources.map((source) => ({
+      source,
+      count: countMap.get(source) || countMap.get(source.replace(' Website', 's')) || 0,
+    }));
+  }
+
   async getCategories(): Promise<string[]> {
-    return this.jobModel.distinct('category', { isActive: true }).exec();
+    const categories = await this.jobModel.distinct('category', { isActive: true }).exec();
+    const standardCategories = [
+      'Software',
+      'IT Support',
+      'Technical Support',
+      'QA/Testing',
+      'Data',
+      'AI/ML',
+      'DevOps/Cloud',
+      'Cybersecurity',
+      'Finance',
+      'HR',
+      'Sales',
+      'Marketing',
+      'Operations',
+      'Customer Support',
+      'Internships',
+      'Apprenticeships',
+      'Fresher/Graduate',
+      'Trainee',
+      'Other',
+    ];
+
+    return Array.from(new Set([...standardCategories, ...categories]));
   }
 
   async countJobs(): Promise<number> {
     return this.jobModel.countDocuments({ isActive: true });
+  }
+
+  async countTotalJobs(): Promise<number> {
+    return this.jobModel.countDocuments();
   }
 }

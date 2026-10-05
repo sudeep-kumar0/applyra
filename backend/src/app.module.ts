@@ -6,6 +6,8 @@ import { UsersModule } from './users/users.module';
 import { ProfilesModule } from './profiles/profiles.module';
 import { JobsModule } from './jobs/jobs.module';
 import { AdminModule } from './admin/admin.module';
+import { ApplicationsModule } from './applications/applications.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { StorageModule } from './storage/storage.module';
 import { CommonModule } from './common/common.module';
 
@@ -33,6 +35,8 @@ import { CommonModule } from './common/common.module';
     ProfilesModule,
     JobsModule,
     AdminModule,
+    ApplicationsModule,
+    NotificationsModule,
     StorageModule,
     CommonModule,
   ],

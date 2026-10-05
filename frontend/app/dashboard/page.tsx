@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { fetchApi } from '@/lib/api';
 import {
   FileText,
   Calendar,
@@ -18,17 +19,52 @@ import {
   Briefcase,
   Loader2,
   CheckCircle2,
+  Shield,
+  ExternalLink,
+  Globe,
+  Building2,
 } from 'lucide-react';
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { user, mongoUser, profile, isLoading } = useAuth();
+  const { user, mongoUser, profile, isAdmin, isLoading } = useAuth();
+
+  const [stats, setStats] = useState<any>(null);
+  const [recentApplications, setRecentApplications] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
 
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/login?redirect=/dashboard');
     }
   }, [user, isLoading, router]);
+
+  useEffect(() => {
+    async function loadDashboardData() {
+      if (!user) return;
+      try {
+        const [statsRes, appsRes] = await Promise.all([
+          fetchApi('/applications/stats').catch(() => null),
+          fetchApi('/applications').catch(() => null),
+        ]);
+
+        if (statsRes && statsRes.stats) {
+          setStats(statsRes.stats);
+        }
+        if (appsRes && appsRes.applications) {
+          setRecentApplications(appsRes.applications.slice(0, 5));
+        }
+      } catch (err) {
+        console.warn('Dashboard data fetch error:', err);
+      } finally {
+        setLoadingData(false);
+      }
+    }
+
+    if (user) {
+      loadDashboardData();
+    }
+  }, [user]);
 
   if (isLoading || !user) {
     return (
@@ -44,42 +80,42 @@ export default function DashboardPage() {
   const statCards = [
     {
       title: 'Total Applications',
-      count: 0,
+      count: stats?.total ?? 0,
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       bg: 'bg-brand-50 dark:bg-brand-950/60',
       border: 'border-brand-100 dark:border-brand-900',
     },
     {
       title: 'Active Interviews',
-      count: 0,
+      count: stats?.interview ?? 0,
       icon: <Calendar className="w-5 h-5 text-amber-600" />,
       bg: 'bg-amber-50 dark:bg-amber-950/60',
       border: 'border-amber-100 dark:border-amber-900',
     },
     {
       title: 'Assessments',
-      count: 0,
+      count: stats?.assessment ?? 0,
       icon: <Clock className="w-5 h-5 text-purple-600" />,
       bg: 'bg-purple-50 dark:bg-purple-950/60',
       border: 'border-purple-100 dark:border-purple-900',
     },
     {
       title: 'Offers & Selected',
-      count: 0,
+      count: stats?.offers ?? 0,
       icon: <Award className="w-5 h-5 text-emerald-600" />,
       bg: 'bg-emerald-50 dark:bg-emerald-950/60',
       border: 'border-emerald-100 dark:border-emerald-900',
     },
     {
       title: 'Archived / Rejected',
-      count: 0,
+      count: stats?.rejected ?? 0,
       icon: <XCircle className="w-5 h-5 text-slate-500" />,
       bg: 'bg-slate-50 dark:bg-slate-800/60',
       border: 'border-slate-200 dark:border-slate-700',
     },
     {
       title: 'Saved Jobs',
-      count: 0,
+      count: stats?.saved ?? 0,
       icon: <Bookmark className="w-5 h-5 text-teal-600" />,
       bg: 'bg-teal-50 dark:bg-teal-950/60',
       border: 'border-teal-100 dark:border-teal-900',
@@ -92,9 +128,16 @@ export default function DashboardPage() {
         {/* Welcome Header */}
         <div className="p-6 md:p-8 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm mb-8 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div>
-            <span className="text-xs font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-400">
-              Personal Dashboard
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wider text-brand-600 dark:text-brand-400">
+                Personal Dashboard
+              </span>
+              {isAdmin && (
+                <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
+                  ADMINISTRATOR
+                </span>
+              )}
+            </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white mt-1">
               Welcome back{profile?.fullName ? `, ${profile.fullName}` : ''}!
             </h1>
@@ -104,6 +147,15 @@ export default function DashboardPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {isAdmin && (
+              <Link
+                href="/admin"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow-sm transition"
+              >
+                <Shield className="w-4 h-4" />
+                <span>Admin Console</span>
+              </Link>
+            )}
             <Link
               href="/jobs"
               className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs shadow-sm transition"
@@ -134,7 +186,7 @@ export default function DashboardPage() {
                 <div className={`p-2 rounded-xl ${card.bg}`}>{card.icon}</div>
               </div>
               <p className="text-2xl font-extrabold text-slate-900 dark:text-white font-mono">
-                {card.count}
+                {loadingData ? '—' : card.count}
               </p>
             </div>
           ))}
@@ -221,80 +273,114 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Recommended Jobs Shell */}
+            {/* Active Applications Pipeline Overview */}
             <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-base font-bold text-slate-900 dark:text-white">
-                  Recommended Opportunities
+                  Recent Applications
                 </h3>
-                <Link href="/jobs" className="text-xs text-brand-600 hover:underline">
-                  Browse all →
+                <Link href="/applications" className="text-xs text-brand-600 hover:underline">
+                  View full tracker →
                 </Link>
               </div>
 
-              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 text-center">
-                <p className="text-xs text-slate-600 dark:text-slate-400">
-                  Complete your profile skills to unlock personalized role matching and automated alerts.
-                </p>
-                <Link
-                  href="/profile"
-                  className="mt-3 inline-block px-4 py-1.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-brand-600 hover:bg-slate-50"
-                >
-                  Update Profile Skills
-                </Link>
-              </div>
+              {recentApplications.length === 0 ? (
+                <div className="p-6 rounded-2xl bg-slate-50 dark:bg-slate-800/40 border border-dashed border-slate-200 dark:border-slate-700 text-center">
+                  <p className="text-xs text-slate-600 dark:text-slate-400">
+                    No active applications recorded yet. Start applying to open positions!
+                  </p>
+                  <Link
+                    href="/jobs"
+                    className="mt-3 inline-block px-4 py-1.5 rounded-lg bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 transition"
+                  >
+                    Explore Jobs
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {recentApplications.map((app) => (
+                    <div
+                      key={app._id}
+                      className="p-3.5 rounded-xl border border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-800/30 flex items-center justify-between gap-3"
+                    >
+                      <div className="space-y-0.5">
+                        <h4 className="text-xs font-bold text-slate-900 dark:text-white">
+                          {app.role}
+                        </h4>
+                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                          <Building2 className="w-3 h-3 text-slate-400" />
+                          <span>{app.company}</span>
+                          {app.source && (
+                            <>
+                              <span>•</span>
+                              <span className="flex items-center gap-1">
+                                <Globe className="w-3 h-3 text-slate-400" />
+                                {app.source}
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-2">
+                        <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-brand-600 dark:text-brand-400">
+                          {app.status.replace('_', ' ')}
+                        </span>
+                        {app.originalUrl && (
+                          <a
+                            href={app.originalUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-1 text-slate-400 hover:text-slate-600 transition"
+                          >
+                            <ExternalLink className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 
           {/* Right Column: Profile Completion & Storage status */}
           <div className="space-y-6">
-            {/* Profile Completion Box */}
             <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
               <h3 className="text-sm font-bold text-slate-900 dark:text-white mb-2">
                 Profile Readiness
               </h3>
-              <div className="flex items-center justify-between text-xs text-slate-500 mb-1.5">
-                <span>Completion Status</span>
-                <span className="font-bold text-brand-600">{profile?.profileCompletion || 20}%</span>
+              <div className="flex items-center justify-between text-xs text-slate-500 mb-2">
+                <span>Profile Completion</span>
+                <span className="font-bold text-brand-600">{profile?.profileCompletion ?? 60}%</span>
               </div>
-              <div className="w-full h-2 rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden mb-4">
+              <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-full h-2">
                 <div
-                  className="h-2 rounded-full bg-gradient-to-r from-brand-600 to-teal-500"
-                  style={{ width: `${profile?.profileCompletion || 20}%` }}
+                  className="bg-brand-600 h-2 rounded-full transition-all"
+                  style={{ width: `${profile?.profileCompletion ?? 60}%` }}
                 />
               </div>
 
-              <div className="space-y-2 text-xs text-slate-600 dark:text-slate-400">
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  <span>Supabase Auth Verified</span>
+              <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800 space-y-2 text-xs">
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Account Registered</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
-                  <span>MongoDB User Record Synced</span>
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Resume Storage Ready</span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-[9px] text-slate-400">
-                    +
-                  </span>
-                  <span>Add preferred roles & experience</span>
+                <div className="flex items-center gap-2 text-slate-600 dark:text-slate-300">
+                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                  <span>Application Tracking Active</span>
                 </div>
               </div>
-            </div>
 
-            {/* Supabase Storage Private Status */}
-            <div className="p-6 bg-slate-100/70 dark:bg-slate-800/40 rounded-3xl border border-slate-200/80 dark:border-slate-800 text-xs space-y-2.5">
-              <span className="font-bold text-slate-800 dark:text-slate-200 block">
-                🔒 Private Resume Vault
-              </span>
-              <p className="text-slate-500 dark:text-slate-400 leading-relaxed">
-                Bucket: <code className="text-brand-600">resumes</code> (Private Supabase Storage). Files are encrypted and only accessible by your account.
-              </p>
               <Link
-                href="/resume"
-                className="text-brand-600 dark:text-brand-400 font-semibold hover:underline block pt-1"
+                href="/profile"
+                className="mt-5 w-full block text-center py-2 px-3 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 transition"
               >
-                Go to Resume Management →
+                Complete Profile
               </Link>
             </div>
           </div>

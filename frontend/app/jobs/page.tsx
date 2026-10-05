@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
+import { fetchApi } from '@/lib/api';
 import ContextualAuthModal, { ContextualAuthType } from '@/components/ContextualAuthModal';
+import DidYouApplyModal from '@/components/DidYouApplyModal';
 import {
   Search,
   MapPin,
@@ -14,6 +16,9 @@ import {
   ExternalLink,
   Briefcase,
   X,
+  Globe,
+  CheckCircle2,
+  AlertCircle,
 } from 'lucide-react';
 
 interface JobListing {
@@ -35,6 +40,41 @@ interface JobListing {
   postedAt: string;
 }
 
+const CATEGORIES = [
+  'All',
+  'Software',
+  'IT Support',
+  'Technical Support',
+  'QA/Testing',
+  'Data',
+  'AI/ML',
+  'DevOps/Cloud',
+  'Cybersecurity',
+  'Finance',
+  'HR',
+  'Sales',
+  'Marketing',
+  'Operations',
+  'Customer Support',
+  'Internships',
+  'Apprenticeships',
+  'Fresher/Graduate',
+  'Trainee',
+  'Other',
+];
+
+const SOURCES = [
+  'All',
+  'LinkedIn',
+  'Naukri',
+  'Indeed',
+  'Foundit',
+  'Apna',
+  'Workday',
+  'Company Career Website',
+  'Other',
+];
+
 const FALLBACK_SEED_JOBS: JobListing[] = [
   {
     title: 'Java Full Stack Developer',
@@ -45,8 +85,8 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     experience: '1-3 years',
     workMode: 'Hybrid',
     jobType: 'Full-time',
-    category: 'Java Developer',
-    source: 'Company Careers',
+    category: 'Software',
+    source: 'Company Career Website',
     skills: ['Java', 'Spring Boot', 'React', 'TypeScript', 'Docker'],
     description: 'Build enterprise banking solutions with modern Spring Boot microservices and React.',
     originalUrl: 'https://careers.tcs.com',
@@ -61,8 +101,8 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     experience: '2-4 years',
     workMode: 'Remote',
     jobType: 'Full-time',
-    category: 'Frontend Developer',
-    source: 'Company Careers',
+    category: 'Software',
+    source: 'LinkedIn',
     skills: ['React', 'Next.js', 'TypeScript', 'Tailwind CSS'],
     description: 'Develop fast web experiences for millions of daily active consumer orders.',
     originalUrl: 'https://careers.swiggy.com',
@@ -77,28 +117,28 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     experience: '2-5 years',
     workMode: 'Hybrid',
     jobType: 'Full-time',
-    category: 'Backend Developer',
-    source: 'Company Careers',
+    category: 'Software',
+    source: 'Naukri',
     skills: ['Node.js', 'NestJS', 'TypeScript', 'MongoDB', 'Docker'],
     description: 'Scale mission-critical payment gateways handling billions of monthly transactions.',
     originalUrl: 'https://razorpay.com',
     postedAt: new Date(Date.now() - 12 * 3600 * 1000).toISOString(),
   },
   {
-    title: 'Software Development Engineer - I (Full Stack)',
-    slug: 'sde-1-full-stack-amazon-hyderabad',
-    company: 'Amazon',
-    location: 'Hyderabad, Telangana',
-    salary: '₹16–24 LPA',
-    experience: '0-2 years',
-    workMode: 'On-site',
+    title: 'Cloud DevOps Engineer',
+    slug: 'cloud-devops-engineer-flipkart-bengaluru',
+    company: 'Flipkart',
+    location: 'Bengaluru, Karnataka',
+    salary: '₹15–24 LPA',
+    experience: '2-5 years',
+    workMode: 'Hybrid',
     jobType: 'Full-time',
-    category: 'Software Engineer',
-    source: 'Company Careers',
-    skills: ['Java', 'Python', 'AWS', 'React', 'SQL'],
-    description: 'Solve real-world cloud logistics problems across distributed high-scale architectures.',
-    originalUrl: 'https://amazon.jobs',
-    postedAt: new Date(Date.now() - 24 * 3600 * 1000).toISOString(),
+    category: 'DevOps/Cloud',
+    source: 'Indeed',
+    skills: ['AWS', 'Kubernetes', 'Terraform', 'CI/CD', 'Docker'],
+    description: 'Design and manage large-scale e-commerce cloud infrastructure and deployment pipelines.',
+    originalUrl: 'https://careers.flipkart.com',
+    postedAt: new Date(Date.now() - 20 * 3600 * 1000).toISOString(),
   },
   {
     title: 'QA Automation Engineer',
@@ -109,8 +149,8 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     experience: '1-3 years',
     workMode: 'Hybrid',
     jobType: 'Full-time',
-    category: 'QA / Testing',
-    source: 'Company Careers',
+    category: 'QA/Testing',
+    source: 'Foundit',
     skills: ['Selenium', 'Java', 'Python', 'API Testing', 'Cypress'],
     description: 'Drive quality assurance and regression test automation for global fintech clients.',
     originalUrl: 'https://careers.wipro.com',
@@ -118,89 +158,121 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
   },
   {
     title: 'Data Analyst',
-    slug: 'data-analyst-flipkart-bengaluru',
-    company: 'Flipkart',
+    slug: 'data-analyst-phonepe-bengaluru',
+    company: 'PhonePe',
     location: 'Bengaluru, Karnataka',
     salary: '₹7–11 LPA',
     experience: '1-3 years',
     workMode: 'Hybrid',
     jobType: 'Full-time',
-    category: 'Data Analyst',
-    source: 'Company Careers',
+    category: 'Data',
+    source: 'Apna',
     skills: ['SQL', 'Python', 'Power BI', 'Tableau', 'Excel'],
     description: 'Extract intelligence, uncover consumer trends, and build automated reporting dashboards.',
-    originalUrl: 'https://careers.flipkart.com',
+    originalUrl: 'https://careers.phonepe.com',
     postedAt: new Date(Date.now() - 48 * 3600 * 1000).toISOString(),
   },
   {
     title: 'Machine Learning Engineering Intern',
-    slug: 'machine-learning-engineering-intern-phonepe-bengaluru',
-    company: 'PhonePe',
-    location: 'Bengaluru, Karnataka',
-    salary: '₹45,000 / mo Stipend',
+    slug: 'machine-learning-engineering-intern-zomato-gurugram',
+    company: 'Zomato',
+    location: 'Gurugram, Haryana',
+    salary: '₹40,000 / mo Stipend',
     experience: 'Fresher / Graduate',
     workMode: 'Hybrid',
     jobType: 'Internship',
-    category: 'Machine Learning',
-    source: 'Company Careers',
+    category: 'AI/ML',
+    source: 'Workday',
     skills: ['Python', 'PyTorch', 'Scikit-Learn', 'SQL', 'Pandas'],
-    description: '6-month internship on transaction fraud models and real-time risk scoring.',
-    originalUrl: 'https://careers.phonepe.com',
+    description: '6-month internship on recommendation engines and delivery time prediction models.',
+    originalUrl: 'https://zomato.com/careers',
     postedAt: new Date(Date.now() - 60 * 3600 * 1000).toISOString(),
   },
 ];
 
 function JobsContent() {
+  const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
 
+  // Initialize filter state from URL query parameters
   const [search, setSearch] = useState(searchParams.get('search') || '');
   const [location, setLocation] = useState(searchParams.get('location') || '');
   const [category, setCategory] = useState(searchParams.get('category') || 'All');
   const [workMode, setWorkMode] = useState(searchParams.get('workMode') || 'All');
   const [jobType, setJobType] = useState(searchParams.get('jobType') || 'All');
-  const [experience, setExperience] = useState('All');
-  const [sort, setSort] = useState('recent');
+  const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || 'All');
+  const [sort, setSort] = useState(searchParams.get('sort') || 'recent');
 
   const [jobs, setJobs] = useState<JobListing[]>(FALLBACK_SEED_JOBS);
   const [loading, setLoading] = useState(false);
   const [savedJobSlugs, setSavedJobSlugs] = useState<string[]>([]);
 
-  // Contextual Auth Modal State
+  // Apply & Track Modal States
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalType, setAuthModalType] = useState<ContextualAuthType>('save_job');
   const [selectedJob, setSelectedJob] = useState<JobListing | null>(null);
+  const [applyModalOpen, setApplyModalOpen] = useState(false);
+  const [applyModalJob, setApplyModalJob] = useState<JobListing | null>(null);
 
-  // Fetch jobs from backend REST API with fallback
+  // Sync state to URL Query Parameters so Back Button preserves exact search state
+  const syncParamsToUrl = useCallback(() => {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set('search', search.trim());
+    if (location.trim()) params.set('location', location.trim());
+    if (category !== 'All') params.set('category', category);
+    if (workMode !== 'All') params.set('workMode', workMode);
+    if (jobType !== 'All') params.set('jobType', jobType);
+    if (sourceFilter !== 'All') params.set('source', sourceFilter);
+    if (sort !== 'recent') params.set('sort', sort);
+
+    const queryString = params.toString();
+    const newPath = queryString ? `/jobs?${queryString}` : '/jobs';
+    if (typeof window !== 'undefined') {
+      window.history.replaceState(null, '', newPath);
+    }
+  }, [search, location, category, workMode, jobType, sourceFilter, sort]);
+
   useEffect(() => {
+    syncParamsToUrl();
+  }, [syncParamsToUrl]);
+
+  // Fetch jobs from backend REST API with fallback to local seed data
+  useEffect(() => {
+    let isCancelled = false;
+
     async function loadJobs() {
       setLoading(true);
       try {
         const query = new URLSearchParams();
-        if (search) query.append('search', search);
-        if (location) query.append('location', location);
+        if (search.trim()) query.append('search', search.trim());
+        if (location.trim()) query.append('location', location.trim());
         if (category !== 'All') query.append('category', category);
         if (workMode !== 'All') query.append('workMode', workMode);
         if (jobType !== 'All') query.append('jobType', jobType);
-        if (experience !== 'All') query.append('experience', experience);
+        if (sourceFilter !== 'All') query.append('source', sourceFilter);
         if (sort) query.append('sort', sort);
+        query.append('limit', '50');
 
-        const res = await fetch(`http://localhost:5000/api/v1/jobs?${query.toString()}`);
+        const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
+        const res = await fetch(`${apiUrl}/jobs?${query.toString()}`);
         if (res.ok) {
           const data = await res.json();
-          if (data && data.jobs && data.jobs.length > 0) {
+          if (!isCancelled && data && Array.isArray(data.jobs) && data.jobs.length > 0) {
             setJobs(data.jobs);
             setLoading(false);
             return;
           }
         }
       } catch (err) {
-        console.warn('Backend API fetch error, filtering local seed list:', err);
+        console.warn('Backend jobs fetch failed, filtering local fallback seed list:', err);
       }
 
-      // Local fallback filter if backend is not yet populated
+      if (isCancelled) return;
+
+      // Local fallback filter if backend is unreachable or has no items matching
       let filtered = [...FALLBACK_SEED_JOBS];
-      if (search) {
+      if (search.trim()) {
         const s = search.toLowerCase();
         filtered = filtered.filter(
           (j) =>
@@ -209,26 +281,37 @@ function JobsContent() {
             j.skills.some((sk) => sk.toLowerCase().includes(s)),
         );
       }
-      if (location) {
+      if (location.trim()) {
         filtered = filtered.filter((j) =>
           j.location.toLowerCase().includes(location.toLowerCase()),
         );
       }
       if (category !== 'All') {
-        filtered = filtered.filter((j) => j.category === category);
+        filtered = filtered.filter(
+          (j) => j.category.toLowerCase() === category.toLowerCase(),
+        );
       }
       if (workMode !== 'All') {
-        filtered = filtered.filter((j) => j.workMode === workMode);
+        filtered = filtered.filter((j) => j.workMode.toLowerCase() === workMode.toLowerCase());
       }
       if (jobType !== 'All') {
-        filtered = filtered.filter((j) => j.jobType === jobType);
+        filtered = filtered.filter((j) => j.jobType.toLowerCase() === jobType.toLowerCase());
+      }
+      if (sourceFilter !== 'All') {
+        filtered = filtered.filter(
+          (j) => j.source.toLowerCase() === sourceFilter.toLowerCase(),
+        );
       }
       setJobs(filtered);
       setLoading(false);
     }
 
     loadJobs();
-  }, [search, location, category, workMode, jobType, experience, sort]);
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [search, location, category, workMode, jobType, sourceFilter, sort]);
 
   const handleSaveClick = (job: JobListing) => {
     if (!user) {
@@ -249,17 +332,71 @@ function JobsContent() {
       setAuthModalOpen(true);
       return;
     }
-    alert(`Starting ATS resume match for: ${job.title} at ${job.company}`);
+    router.push(`/resume?job=${encodeURIComponent(job.slug)}`);
   };
 
-  const handleApplyClick = (job: JobListing) => {
+  const handleApplyClick = async (job: JobListing) => {
+    if (!job.originalUrl) {
+      alert('Original application link is not available for this role.');
+      return;
+    }
+
+    // If unauthenticated: open contextual auth modal
     if (!user) {
       setSelectedJob(job);
       setAuthModalType('apply_track');
       setAuthModalOpen(true);
       return;
     }
+
+    // Authenticated apply flow:
+    // 1. Record apply attempt in MongoDB via background click tracking
+    try {
+      await fetchApi('/applications/click', {
+        method: 'POST',
+        body: JSON.stringify({ jobId: job._id || job.slug }),
+      });
+    } catch (err) {
+      console.warn('Could not record apply click to MongoDB:', err);
+    }
+
+    // 2. Open official external job link in a new tab
     window.open(job.originalUrl, '_blank', 'noopener,noreferrer');
+
+    // 3. Prompt user with "Did you apply for this job?" modal
+    setApplyModalJob(job);
+    setApplyModalOpen(true);
+  };
+
+  const currentQueryString = () => {
+    const params = new URLSearchParams();
+    if (search.trim()) params.set('search', search.trim());
+    if (location.trim()) params.set('location', location.trim());
+    if (category !== 'All') params.set('category', category);
+    if (workMode !== 'All') params.set('workMode', workMode);
+    if (jobType !== 'All') params.set('jobType', jobType);
+    if (sourceFilter !== 'All') params.set('source', sourceFilter);
+    if (sort !== 'recent') params.set('sort', sort);
+    return params.toString();
+  };
+
+  const sourceBadgeColor = (source: string) => {
+    switch (source?.toLowerCase()) {
+      case 'linkedin':
+        return 'bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950/60 dark:text-blue-300 dark:border-blue-900';
+      case 'naukri':
+        return 'bg-sky-50 text-sky-700 border-sky-200 dark:bg-sky-950/60 dark:text-sky-300 dark:border-sky-900';
+      case 'indeed':
+        return 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-950/60 dark:text-indigo-300 dark:border-indigo-900';
+      case 'foundit':
+        return 'bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950/60 dark:text-purple-300 dark:border-purple-900';
+      case 'apna':
+        return 'bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-950/60 dark:text-emerald-300 dark:border-emerald-900';
+      case 'workday':
+        return 'bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-950/60 dark:text-amber-300 dark:border-amber-900';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700';
+    }
   };
 
   return (
@@ -270,7 +407,7 @@ function JobsContent() {
           Explore Open Job Opportunities
         </h1>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-          Free public discovery • Direct company links • Transparent requirements
+          Free public discovery • Direct company links • Transparent requirements & sources
         </p>
       </div>
 
@@ -323,12 +460,50 @@ function JobsContent() {
                   setCategory('All');
                   setWorkMode('All');
                   setJobType('All');
-                  setExperience('All');
+                  setSourceFilter('All');
+                  setSearch('');
+                  setLocation('');
                 }}
                 className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
               >
-                Reset
+                Reset All
               </button>
+            </div>
+
+            {/* Category Dropdown (All 18 Categories) */}
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2">
+                Job Category
+              </label>
+              <select
+                value={category}
+                onChange={(e) => setCategory(e.target.value)}
+                className="w-full text-xs p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                {CATEGORIES.map((cat) => (
+                  <option key={cat} value={cat}>
+                    {cat === 'All' ? 'All Categories (18)' : cat}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Job Source Dropdown */}
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2">
+                Job Source
+              </label>
+              <select
+                value={sourceFilter}
+                onChange={(e) => setSourceFilter(e.target.value)}
+                className="w-full text-xs p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none focus:ring-1 focus:ring-brand-500"
+              >
+                {SOURCES.map((src) => (
+                  <option key={src} value={src}>
+                    {src === 'All' ? 'All Sources' : src}
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Work Mode */}
@@ -374,34 +549,15 @@ function JobsContent() {
                 ))}
               </div>
             </div>
-
-            {/* Category */}
-            <div>
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2">
-                Category
-              </label>
-              <select
-                value={category}
-                onChange={(e) => setCategory(e.target.value)}
-                className="w-full text-xs p-2.5 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-800 dark:text-slate-200 focus:outline-none"
-              >
-                <option value="All">All Categories</option>
-                <option value="Java Developer">Java Developer</option>
-                <option value="Frontend Developer">Frontend Developer</option>
-                <option value="Backend Developer">Backend Developer</option>
-                <option value="Software Engineer">Software Engineer</option>
-                <option value="QA / Testing">QA / Testing</option>
-                <option value="Data Analyst">Data Analyst</option>
-                <option value="Machine Learning">Machine Learning</option>
-              </select>
-            </div>
           </div>
         </div>
 
         {/* JOB LISTINGS */}
         <div className="lg:col-span-3 space-y-4">
           <div className="flex items-center justify-between text-xs text-slate-500 pb-2">
-            <span>Showing {jobs.length} open position{jobs.length !== 1 ? 's' : ''}</span>
+            <span>
+              Showing {jobs.length} open position{jobs.length !== 1 ? 's' : ''}
+            </span>
             <div className="flex items-center gap-2">
               <span>Sort by:</span>
               <select
@@ -416,16 +572,32 @@ function JobsContent() {
           </div>
 
           {loading ? (
-            <div className="p-12 text-center text-slate-400">Loading jobs...</div>
+            <div className="p-12 text-center text-slate-400">Loading open jobs...</div>
           ) : jobs.length === 0 ? (
             <div className="p-12 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 text-center">
               <Briefcase className="w-12 h-12 text-slate-300 mx-auto mb-3" />
               <h3 className="font-bold text-slate-800 dark:text-slate-200">No jobs match your criteria</h3>
               <p className="text-xs text-slate-500 mt-1">Try broadening your search terms or clearing some filters.</p>
+              <button
+                onClick={() => {
+                  setCategory('All');
+                  setWorkMode('All');
+                  setJobType('All');
+                  setSourceFilter('All');
+                  setSearch('');
+                  setLocation('');
+                }}
+                className="mt-4 px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 transition"
+              >
+                Clear All Filters
+              </button>
             </div>
           ) : (
             jobs.map((job) => {
               const isSaved = savedJobSlugs.includes(job.slug);
+              const qString = currentQueryString();
+              const detailsLink = qString ? `/jobs/${job.slug}?${qString}` : `/jobs/${job.slug}`;
+
               return (
                 <div
                   key={job.slug}
@@ -434,19 +606,31 @@ function JobsContent() {
                   <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
                     <div>
                       <div className="flex flex-wrap items-center gap-2 mb-2">
+                        {/* Source Badge */}
+                        <span
+                          className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${sourceBadgeColor(
+                            job.source,
+                          )} flex items-center gap-1`}
+                        >
+                          <Globe className="w-3 h-3" />
+                          Source: {job.source || 'Company Career Website'}
+                        </span>
+
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300">
                           {job.workMode}
                         </span>
                         <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                           {job.jobType}
                         </span>
-                        <span className="text-[11px] text-slate-400">
-                          Source: {job.source}
-                        </span>
+                        {job.category && (
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400">
+                            {job.category}
+                          </span>
+                        )}
                       </div>
 
                       <Link
-                        href={`/jobs/${job.slug}`}
+                        href={detailsLink}
                         className="text-lg font-bold text-slate-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 transition"
                       >
                         {job.title}
@@ -510,7 +694,7 @@ function JobsContent() {
                       </button>
 
                       <Link
-                        href={`/jobs/${job.slug}`}
+                        href={detailsLink}
                         className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2 py-1.5"
                       >
                         Details & Requirements
@@ -532,6 +716,7 @@ function JobsContent() {
         </div>
       </div>
 
+      {/* Contextual Auth Modal */}
       <ContextualAuthModal
         isOpen={authModalOpen}
         type={authModalType}
@@ -542,6 +727,16 @@ function JobsContent() {
           if (selectedJob?.originalUrl) {
             window.open(selectedJob.originalUrl, '_blank', 'noopener,noreferrer');
           }
+        }}
+      />
+
+      {/* Did You Apply? Confirmation Modal */}
+      <DidYouApplyModal
+        isOpen={applyModalOpen}
+        job={applyModalJob}
+        onClose={() => setApplyModalOpen(false)}
+        onConfirmed={() => {
+          // Application successfully saved and confirmed as APPLIED in MongoDB
         }}
       />
     </div>
