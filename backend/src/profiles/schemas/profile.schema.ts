@@ -92,6 +92,18 @@ export class Profile {
   @Prop({ default: 15, min: 0, max: 100 })
   profileCompletion: number;
 
+  @Prop({ default: '' })
+  resumeKey: string;
+
+  @Prop({ default: '' })
+  resumeFileName: string;
+
+  @Prop({ default: null })
+  resumeUploadedAt: Date;
+
+  @Prop({ default: '' })
+  resumeText: string;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
