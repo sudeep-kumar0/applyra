@@ -48,8 +48,8 @@ export default function DashboardPage() {
           fetchApi('/applications').catch(() => null),
         ]);
 
-        if (statsRes && statsRes.stats) {
-          setStats(statsRes.stats);
+        if (statsRes) {
+          setStats(statsRes.stats || statsRes);
         }
         if (appsRes && appsRes.applications) {
           setRecentApplications(appsRes.applications.slice(0, 5));
@@ -80,21 +80,28 @@ export default function DashboardPage() {
   const statCards = [
     {
       title: 'Total Applications',
-      count: stats?.total ?? 0,
+      count: stats?.total ?? stats?.totalApplications ?? 0,
       icon: <FileText className="w-5 h-5 text-brand-600" />,
       bg: 'bg-brand-50 dark:bg-brand-950/60',
       border: 'border-brand-100 dark:border-brand-900',
     },
     {
+      title: 'Applied',
+      count: stats?.applied ?? stats?.totalApplied ?? 0,
+      icon: <CheckCircle2 className="w-5 h-5 text-blue-600" />,
+      bg: 'bg-blue-50 dark:bg-blue-950/60',
+      border: 'border-blue-100 dark:border-blue-900',
+    },
+    {
       title: 'Active Interviews',
-      count: stats?.interview ?? 0,
+      count: stats?.interview ?? stats?.interviews ?? 0,
       icon: <Calendar className="w-5 h-5 text-amber-600" />,
       bg: 'bg-amber-50 dark:bg-amber-950/60',
       border: 'border-amber-100 dark:border-amber-900',
     },
     {
       title: 'Assessments',
-      count: stats?.assessment ?? 0,
+      count: stats?.assessment ?? stats?.assessments ?? 0,
       icon: <Clock className="w-5 h-5 text-purple-600" />,
       bg: 'bg-purple-50 dark:bg-purple-950/60',
       border: 'border-purple-100 dark:border-purple-900',
@@ -105,13 +112,6 @@ export default function DashboardPage() {
       icon: <Award className="w-5 h-5 text-emerald-600" />,
       bg: 'bg-emerald-50 dark:bg-emerald-950/60',
       border: 'border-emerald-100 dark:border-emerald-900',
-    },
-    {
-      title: 'Archived / Rejected',
-      count: stats?.rejected ?? 0,
-      icon: <XCircle className="w-5 h-5 text-slate-500" />,
-      bg: 'bg-slate-50 dark:bg-slate-800/60',
-      border: 'border-slate-200 dark:border-slate-700',
     },
     {
       title: 'Saved Jobs',

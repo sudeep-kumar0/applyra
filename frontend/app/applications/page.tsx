@@ -104,8 +104,8 @@ export default function ApplicationsPage() {
       if (appRes && appRes.applications) {
         setApplications(appRes.applications);
       }
-      if (statsRes && statsRes.stats) {
-        setStats(statsRes.stats);
+      if (statsRes) {
+        setStats(statsRes.stats || statsRes);
       }
     } catch (err) {
       console.warn('Could not load applications from backend:', err);
@@ -134,8 +134,8 @@ export default function ApplicationsPage() {
           prev.map((app) => (app._id === appId ? { ...app, status: newStatus } : app)),
         );
         // Refresh stats
-        const statsRes = await fetchApi('/applications/stats');
-        if (statsRes && statsRes.stats) setStats(statsRes.stats);
+        const updatedStatsRes = await fetchApi('/applications/stats');
+        if (updatedStatsRes) setStats(updatedStatsRes.stats || updatedStatsRes);
       }
     } catch (err: any) {
       alert(err.message || 'Failed to update application status');
@@ -182,13 +182,13 @@ export default function ApplicationsPage() {
 
   const getStageCount = (stage: string) => {
     if (!stats) return 0;
-    if (stage === 'All') return stats.total || 0;
-    if (stage === 'SAVED') return stats.saved || 0;
-    if (stage === 'APPLIED') return stats.applied || 0;
-    if (stage === 'ASSESSMENT') return stats.assessment || 0;
-    if (stage === 'INTERVIEW' || stage === 'HR_ROUND') return stats.interview || 0;
-    if (stage === 'OFFER' || stage === 'SELECTED') return stats.offers || 0;
-    if (stage === 'REJECTED' || stage === 'WITHDRAWN') return stats.rejected || 0;
+    if (stage === 'All') return stats.totalApplications ?? stats.total ?? 0;
+    if (stage === 'SAVED') return stats.saved ?? 0;
+    if (stage === 'APPLIED') return stats.totalApplied ?? stats.applied ?? 0;
+    if (stage === 'ASSESSMENT') return stats.assessments ?? stats.assessment ?? 0;
+    if (stage === 'INTERVIEW' || stage === 'HR_ROUND') return stats.interviews ?? stats.interview ?? 0;
+    if (stage === 'OFFER' || stage === 'SELECTED') return stats.offers ?? 0;
+    if (stage === 'REJECTED' || stage === 'WITHDRAWN') return stats.rejected ?? 0;
     return 0;
   };
 
@@ -220,31 +220,31 @@ export default function ApplicationsPage() {
           <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-3 mb-8">
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
               <span className="text-[11px] text-slate-400 font-semibold block">Total</span>
-              <span className="text-xl font-black text-slate-900 dark:text-white font-mono">{stats.total || 0}</span>
+              <span className="text-xl font-black text-slate-900 dark:text-white font-mono">{stats.totalApplications ?? stats.total ?? 0}</span>
             </div>
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
               <span className="text-[11px] text-slate-400 font-semibold block">Saved</span>
-              <span className="text-xl font-black text-slate-600 dark:text-slate-300 font-mono">{stats.saved || 0}</span>
+              <span className="text-xl font-black text-slate-600 dark:text-slate-300 font-mono">{stats.saved ?? 0}</span>
             </div>
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-blue-100 dark:border-blue-900 bg-blue-50/30 shadow-sm">
               <span className="text-[11px] text-blue-600 font-semibold block">Applied</span>
-              <span className="text-xl font-black text-blue-700 dark:text-blue-400 font-mono">{stats.applied || 0}</span>
+              <span className="text-xl font-black text-blue-700 dark:text-blue-400 font-mono">{stats.totalApplied ?? stats.applied ?? 0}</span>
             </div>
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-purple-100 dark:border-purple-900 bg-purple-50/30 shadow-sm">
               <span className="text-[11px] text-purple-600 font-semibold block">Assessments</span>
-              <span className="text-xl font-black text-purple-700 dark:text-purple-400 font-mono">{stats.assessment || 0}</span>
+              <span className="text-xl font-black text-purple-700 dark:text-purple-400 font-mono">{stats.assessments ?? stats.assessment ?? 0}</span>
             </div>
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-amber-100 dark:border-amber-900 bg-amber-50/30 shadow-sm">
               <span className="text-[11px] text-amber-600 font-semibold block">Interviews</span>
-              <span className="text-xl font-black text-amber-700 dark:text-amber-400 font-mono">{stats.interview || 0}</span>
+              <span className="text-xl font-black text-amber-700 dark:text-amber-400 font-mono">{stats.interviews ?? stats.interview ?? 0}</span>
             </div>
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-emerald-100 dark:border-emerald-900 bg-emerald-50/30 shadow-sm">
               <span className="text-[11px] text-emerald-600 font-semibold block">Offers</span>
-              <span className="text-xl font-black text-emerald-700 dark:text-emerald-400 font-mono">{stats.offers || 0}</span>
+              <span className="text-xl font-black text-emerald-700 dark:text-emerald-400 font-mono">{stats.offers ?? 0}</span>
             </div>
             <div className="p-4 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
               <span className="text-[11px] text-slate-400 font-semibold block">Archived</span>
-              <span className="text-xl font-black text-slate-500 font-mono">{stats.rejected || 0}</span>
+              <span className="text-xl font-black text-slate-500 font-mono">{stats.rejected ?? 0}</span>
             </div>
           </div>
         )}
