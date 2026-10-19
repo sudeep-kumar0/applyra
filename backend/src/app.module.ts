@@ -10,6 +10,7 @@ import { ApplicationsModule } from './applications/applications.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { StorageModule } from './storage/storage.module';
 import { CommonModule } from './common/common.module';
+import { ResumeModule } from './resume/resume.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { CommonModule } from './common/common.module';
     NotificationsModule,
     StorageModule,
     CommonModule,
+    ResumeModule,
   ],
 })
 export class AppModule {}
