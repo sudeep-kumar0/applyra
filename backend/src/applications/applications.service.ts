@@ -145,6 +145,7 @@ export class ApplicationsService {
 
     return this.applicationModel
       .find(query)
+      .populate('jobId', 'slug title company location salary skills workMode jobType source originalUrl')
       .sort({ appliedAt: -1, updatedAt: -1, createdAt: -1 })
       .exec();
   }
@@ -188,9 +189,13 @@ export class ApplicationsService {
   }
 
   async getUserStats(userId: Types.ObjectId | string): Promise<{
+    total?: number;
     totalApplications: number;
+    applied?: number;
     totalApplied: number;
+    interview?: number;
     interviews: number;
+    assessment?: number;
     assessments: number;
     offers: number;
     rejected: number;
@@ -238,9 +243,13 @@ export class ApplicationsService {
     ]);
 
     return {
+      total: totalApplications,
       totalApplications,
+      applied: totalApplied,
       totalApplied,
+      interview: interviews,
       interviews,
+      assessment: assessments,
       assessments,
       offers,
       rejected,

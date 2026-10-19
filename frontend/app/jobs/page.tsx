@@ -208,6 +208,21 @@ function JobsContent() {
   const [loading, setLoading] = useState(false);
   const [savedJobSlugs, setSavedJobSlugs] = useState<string[]>([]);
 
+  // Load saved job slugs from backend when user logs in
+  useEffect(() => {
+    if (!user) return;
+    fetchApi('/applications?status=SAVED')
+      .then((res) => {
+        if (res && res.applications) {
+          const slugs = res.applications
+            .map((a: any) => (a.jobId && a.jobId.slug) ? a.jobId.slug : null)
+            .filter(Boolean);
+          setSavedJobSlugs(slugs);
+        }
+      })
+      .catch(() => {});
+  }, [user]);
+
   // Apply & Track Modal States
   const [authModalOpen, setAuthModalOpen] = useState(false);
   const [authModalType, setAuthModalType] = useState<ContextualAuthType>('save_job');
@@ -313,16 +328,32 @@ function JobsContent() {
     };
   }, [search, location, category, workMode, jobType, sourceFilter, sort]);
 
-  const handleSaveClick = (job: JobListing) => {
+  const handleSaveClick = async (job: JobListing) => {
     if (!user) {
       setSelectedJob(job);
       setAuthModalType('save_job');
       setAuthModalOpen(true);
       return;
     }
-    setSavedJobSlugs((prev) =>
-      prev.includes(job.slug) ? prev.filter((s) => s !== job.slug) : [...prev, job.slug],
-    );
+    const jobId = job._id || job.slug;
+    const isAlreadySaved = savedJobSlugs.includes(job.slug);
+    if (isAlreadySaved) {
+      // Optimistically remove from saved (UI only — no unsave endpoint yet)
+      setSavedJobSlugs((prev) => prev.filter((s) => s !== job.slug));
+      return;
+    }
+    // Optimistically mark as saved in UI
+    setSavedJobSlugs((prev) => [...prev, job.slug]);
+    try {
+      await fetchApi('/applications/click', {
+        method: 'POST',
+        body: JSON.stringify({ jobId }),
+      });
+    } catch (err) {
+      // Revert if failed
+      setSavedJobSlugs((prev) => prev.filter((s) => s !== job.slug));
+      console.warn('Could not save job:', err);
+    }
   };
 
   const handleResumeMatchClick = (job: JobListing) => {
