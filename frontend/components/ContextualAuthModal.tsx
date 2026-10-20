@@ -39,7 +39,6 @@ export default function ContextualAuthModal({
       description: string;
       icon: React.ReactNode;
       primaryActionLabel: string;
-      showDirectApplyOption?: boolean;
     }
   > = {
     save_job: {
@@ -58,12 +57,11 @@ export default function ContextualAuthModal({
       primaryActionLabel: 'Create Account to Match',
     },
     apply_track: {
-      title: 'Want Applyra to track this application?',
+      title: 'Sign In to Apply',
       description:
-        'You can apply directly on the original employer site, or sign in so Applyra can record your application, schedule follow-ups, and track your interview stages.',
+        'Please sign in or create an account to apply for this job and track your application progress.',
       icon: <Send className="w-8 h-8 text-brand-600" />,
-      primaryActionLabel: 'Sign In & Track Application',
-      showDirectApplyOption: true,
+      primaryActionLabel: 'Create Account to Apply',
     },
     applications: {
       title: 'Application Tracker',
@@ -95,15 +93,6 @@ export default function ContextualAuthModal({
   };
 
   const content = contentMap[type] || contentMap.save_job;
-
-  const handleDirectApply = () => {
-    onClose();
-    if (onContinueWithoutTracking) {
-      onContinueWithoutTracking();
-    } else if (originalUrl) {
-      window.open(originalUrl, '_blank', 'noopener,noreferrer');
-    }
-  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -147,16 +136,6 @@ export default function ContextualAuthModal({
           >
             Already have an account? Sign In
           </Link>
-
-          {/* Direct apply option for anonymous users on apply click */}
-          {content.showDirectApplyOption && (
-            <button
-              onClick={handleDirectApply}
-              className="w-full inline-flex items-center justify-center px-4 py-2 text-xs font-semibold text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition"
-            >
-              Continue directly to employer application ↗
-            </button>
-          )}
 
           <button
             onClick={onClose}
