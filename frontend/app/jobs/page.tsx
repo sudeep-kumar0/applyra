@@ -19,6 +19,7 @@ import {
   Globe,
   CheckCircle2,
   AlertCircle,
+  ChevronDown,
 } from 'lucide-react';
 
 interface JobListing {
@@ -207,6 +208,7 @@ function JobsContent() {
   const [jobs, setJobs] = useState<JobListing[]>(FALLBACK_SEED_JOBS);
   const [loading, setLoading] = useState(false);
   const [savedJobSlugs, setSavedJobSlugs] = useState<string[]>([]);
+  const [showMobileFilters, setShowMobileFilters] = useState(false);
 
   // Load saved job slugs from backend when user logs in
   useEffect(() => {
@@ -477,9 +479,53 @@ function JobsContent() {
         </div>
       </div>
 
+      {/* Mobile Filters Toggle Button */}
+      <div className="lg:hidden flex items-center justify-between gap-3 mb-6">
+        <button
+          onClick={() => setShowMobileFilters((prev) => !prev)}
+          className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-xs font-bold text-slate-800 dark:text-slate-200 shadow-sm transition"
+        >
+          <Filter className="w-4 h-4 text-brand-600" />
+          <span>Filters</span>
+          {((category !== 'All' ? 1 : 0) +
+            (workMode !== 'All' ? 1 : 0) +
+            (jobType !== 'All' ? 1 : 0) +
+            (sourceFilter !== 'All' ? 1 : 0)) > 0 && (
+            <span className="w-5 h-5 rounded-full bg-brand-600 text-white text-[10px] font-black flex items-center justify-center">
+              {(category !== 'All' ? 1 : 0) +
+                (workMode !== 'All' ? 1 : 0) +
+                (jobType !== 'All' ? 1 : 0) +
+                (sourceFilter !== 'All' ? 1 : 0)}
+            </span>
+          )}
+          <ChevronDown
+            className={`w-3.5 h-3.5 text-slate-400 transition-transform ${
+              showMobileFilters ? 'rotate-180' : ''
+            }`}
+          />
+        </button>
+
+        {((category !== 'All' ? 1 : 0) +
+          (workMode !== 'All' ? 1 : 0) +
+          (jobType !== 'All' ? 1 : 0) +
+          (sourceFilter !== 'All' ? 1 : 0)) > 0 && (
+          <button
+            onClick={() => {
+              setCategory('All');
+              setWorkMode('All');
+              setJobType('All');
+              setSourceFilter('All');
+            }}
+            className="text-xs text-brand-600 dark:text-brand-400 font-semibold hover:underline"
+          >
+            Reset Filters
+          </button>
+        )}
+      </div>
+
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
         {/* FILTERS SIDEBAR */}
-        <div className="lg:col-span-1 space-y-6">
+        <div className={`lg:col-span-1 space-y-6 ${showMobileFilters ? 'block' : 'hidden lg:block'}`}>
           <div className="p-5 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
               <span className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
@@ -580,6 +626,14 @@ function JobsContent() {
                 ))}
               </div>
             </div>
+
+            {/* Mobile Done button */}
+            <button
+              onClick={() => setShowMobileFilters(false)}
+              className="lg:hidden w-full py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs shadow-sm transition"
+            >
+              Done / View Jobs
+            </button>
           </div>
         </div>
 
@@ -634,8 +688,8 @@ function JobsContent() {
                   key={job.slug}
                   className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition"
                 >
-                  <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-                    <div>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex-1 min-w-0">
                       <div className="flex flex-wrap items-center gap-2 mb-2">
                         {/* Source Badge */}
                         <span
@@ -673,7 +727,7 @@ function JobsContent() {
 
                     <button
                       onClick={() => handleSaveClick(job)}
-                      className={`p-2 rounded-xl border transition flex items-center justify-center ${
+                      className={`p-2 rounded-xl border transition flex items-center justify-center flex-shrink-0 self-start ${
                         isSaved
                           ? 'bg-brand-50 border-brand-300 text-brand-600'
                           : 'border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
