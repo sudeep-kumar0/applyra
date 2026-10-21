@@ -27,7 +27,21 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
+              try {
+                const theme = localStorage.getItem('applyra-theme') || 'system';
+                const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+                if (isDark) document.documentElement.classList.add('dark');
+                else document.documentElement.classList.remove('dark');
+              } catch (_) {}
+            `,
+          }}
+        />
+      </head>
       <body className="flex flex-col min-h-screen font-sans antialiased bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100">
         <AuthProvider>
           <Navbar />

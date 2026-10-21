@@ -8,6 +8,16 @@
   --background-end-rgb: 248, 250, 252;
 }
 
+html.dark {
+  --foreground-rgb: 248, 250, 252;
+  --background-start-rgb: 11, 15, 25;
+  --background-end-rgb: 15, 23, 42;
+}
+
+html {
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
 body {
   color: rgb(var(--foreground-rgb));
   background: linear-gradient(
