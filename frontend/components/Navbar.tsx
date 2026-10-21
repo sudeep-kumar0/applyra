@@ -2,13 +2,9 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
-import { usePathname, useRouter } from 'next/navigation';
-
-
-
+import { usePathname } from 'next/navigation';
 import Logo from './Logo';
 import { useAuth } from '@/context/AuthContext';
-import ThemeToggle from './ThemeToggle';
 import { fetchApi } from '@/lib/api';
 import {
   Menu,
@@ -167,7 +163,16 @@ export default function Navbar() {
 
           {/* Right Action Buttons */}
           <div className="hidden md:flex items-center space-x-3">
-            <ThemeToggle />
+            <button
+              type="button"
+              onClick={toggleDarkMode}
+              className="p-2 rounded-full text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              aria-label={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+              aria-pressed={isDarkMode}
+              title={`Switch to ${isDarkMode ? 'light' : 'dark'} mode`}
+            >
+              {isDarkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}
+            </button>
             {!user ? (
               <>
                 <Link
@@ -196,10 +201,8 @@ export default function Navbar() {
                 <div className="relative">
                   <button
                     onClick={() => {
-                      const opening = !notificationsOpen;
-                      setNotificationsOpen(opening);
+                      setNotificationsOpen(!notificationsOpen);
                       setUserDropdownOpen(false);
-                      if (opening && unreadCount > 0) handleMarkAllRead();
                     }}
                     className="relative p-2 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-300 transition"
                     aria-label="View notifications"
@@ -223,7 +226,11 @@ export default function Navbar() {
                           <span className="text-xs font-bold text-slate-900 dark:text-white">
                             Notifications
                           </span>
-                          
+                          {unreadCount > 0 && (
+                            <span className="px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300">
+                              {unreadCount} unread
+                            </span>
+                          )}
                         </div>
                         {unreadCount > 0 && (
                           <button
@@ -270,7 +277,15 @@ export default function Navbar() {
                                 </span>
                               </div>
 
-
+                              {!n.read && (
+                                <button
+                                  onClick={(e) => handleMarkAsRead(n._id, e)}
+                                  className="p-1 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+                                  title="Mark as read"
+                                >
+                                  <Check className="w-3.5 h-3.5" />
+                                </button>
+                              )}
                             </div>
                           ))
                         )}
@@ -379,9 +394,8 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile hamburger & theme toggle */}
+          {/* Mobile hamburger */}
           <div className="flex md:hidden items-center space-x-2">
-            <ThemeToggle />
             {user && unreadCount > 0 && (
               <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-600 text-white">
                 {unreadCount}

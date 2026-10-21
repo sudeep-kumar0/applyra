@@ -20,7 +20,6 @@ import {
   CheckCircle2,
   AlertCircle,
   ChevronDown,
-  ChevronRight,
 } from 'lucide-react';
 
 interface JobListing {
@@ -687,8 +686,7 @@ function JobsContent() {
               return (
                 <div
                   key={job.slug}
-                  onClick={() => router.push(detailsLink)}
-                  className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition cursor-pointer group/card"
+                  className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -718,8 +716,7 @@ function JobsContent() {
 
                       <Link
                         href={detailsLink}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-lg font-bold text-slate-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 group-hover/card:text-brand-600 dark:group-hover/card:text-brand-400 transition"
+                        className="text-lg font-bold text-slate-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 transition"
                       >
                         {job.title}
                       </Link>
@@ -729,18 +726,15 @@ function JobsContent() {
                     </div>
 
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleSaveClick(job);
-                      }}
+                      onClick={() => handleSaveClick(job)}
                       className={`p-2 rounded-xl border transition flex items-center justify-center flex-shrink-0 self-start ${
                         isSaved
-                          ? 'bg-brand-50/80 border-brand-200 text-brand-600 dark:bg-brand-950/70 dark:border-brand-800 dark:text-brand-400'
-                          : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'
+                          ? 'bg-brand-50 border-brand-300 text-brand-600'
+                          : 'border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                       title={user ? (isSaved ? 'Job saved' : 'Save job') : 'Login to save job'}
                     >
-                      <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-brand-600 dark:fill-brand-400' : ''}`} />
+                      <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-brand-600' : ''}`} />
                     </button>
                   </div>
 
@@ -775,33 +769,25 @@ function JobsContent() {
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex items-center gap-2">
                       <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleResumeMatchClick(job);
-                        }}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 text-xs font-semibold hover:bg-teal-100 dark:hover:bg-teal-900/40 transition"
+                        onClick={() => handleResumeMatchClick(job)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 text-xs font-semibold hover:bg-teal-100 transition"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
+                        <Sparkles className="w-3.5 h-3.5 text-teal-600" />
                         <span>Check Resume Match</span>
                       </button>
 
                       <Link
                         href={detailsLink}
-                        onClick={(e) => e.stopPropagation()}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-slate-50/80 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700/80 hover:text-slate-900 dark:hover:text-white transition group/btn"
+                        className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2 py-1.5"
                       >
-                        <span>Details & Requirements</span>
-                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover/btn:translate-x-0.5 transition-transform" />
+                        Details & Requirements
                       </Link>
                     </div>
 
                     <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleApplyClick(job);
-                      }}
+                      onClick={() => handleApplyClick(job)}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs shadow-sm transition"
                     >
                       <span>Apply Now</span>
