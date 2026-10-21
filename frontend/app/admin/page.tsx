@@ -1041,6 +1041,7 @@ export default function AdminDashboardPage() {
                   </select>
                 </div>
                 <div>
+                  
                   <label className="block font-semibold text-slate-300 mb-1">Work Mode</label>
                   <select
                     value={editingJob.workMode}
