@@ -29,6 +29,8 @@ import {
   Check,
   X,
   RefreshCw,
+  Download,
+  Sparkles,
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -64,11 +66,25 @@ const SOURCES = [
   'Other',
 ];
 
+
+const GREENHOUSE_PRESETS = [
+  { name: 'Cloudflare', token: 'cloudflare', category: 'DevOps/Cloud' },
+  { name: 'GitLab', token: 'gitlab', category: 'DevOps/Cloud' },
+  { name: 'Figma', token: 'figma', category: 'Software' },
+  { name: 'Reddit', token: 'reddit', category: 'Software' },
+  { name: 'Brex', token: 'brex', category: 'Finance' },
+  { name: 'Datadog', token: 'datadog', category: 'DevOps/Cloud' },
+  { name: 'Gusto', token: 'gusto', category: 'HR' },
+  { name: 'DoorDash', token: 'doordash', category: 'Software' },
+  { name: 'Coinbase', token: 'coinbase', category: 'Software' },
+  { name: 'Vercel', token: 'vercel', category: 'Software' },
+];
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { user, mongoUser, isAdmin, isLoading } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'add_job' | 'manage_jobs' | 'sources' | 'reports'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'add_job' | 'manage_jobs' | 'sources' | 'reports' | 'import_greenhouse'>('dashboard');
 
   // Stats state
   const [stats, setStats] = useState<any>(null);
@@ -125,6 +141,73 @@ export default function AdminDashboardPage() {
       }
     }
   }, [user, isLoading, router]);
+
+
+  // Greenhouse Scraper State
+  const [scraperBoard, setScraperBoard] = useState('cloudflare');
+  const [scraperCompany, setScraperCompany] = useState('Cloudflare');
+  const [scraperLimit, setScraperLimit] = useState<number>(25);
+  const [scraperCategory, setScraperCategory] = useState<string>('Auto-Detect');
+  const [scraperSyncDeactivations, setScraperSyncDeactivations] = useState(true);
+  const [scraperLoading, setScraperLoading] = useState(false);
+  const [scraperPreviewing, setScraperPreviewing] = useState(false);
+  const [scraperPreview, setScraperPreview] = useState<any | null>(null);
+  const [scraperResult, setScraperResult] = useState<any | null>(null);
+
+  const handlePreviewGreenhouse = async () => {
+    if (!scraperBoard.trim()) {
+      showToast('Please enter a Greenhouse board token or URL', 'error');
+      return;
+    }
+    setScraperPreviewing(true);
+    setScraperPreview(null);
+    try {
+      const res = await fetchApi('/admin/scrape/greenhouse/preview', {
+        method: 'POST',
+        body: JSON.stringify({ boardToken: scraperBoard.trim(), limit: 3 }),
+      });
+      if (res && res.success) {
+        setScraperPreview(res);
+        if (res.company && !scraperCompany) setScraperCompany(res.company);
+        showToast(`Fetched ${res.totalFound} jobs from ${res.company}. Showing 3 previews.`);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to preview Greenhouse jobs', 'error');
+    } finally {
+      setScraperPreviewing(false);
+    }
+  };
+
+  const handleImportGreenhouse = async () => {
+    if (!scraperBoard.trim()) {
+      showToast('Please enter a Greenhouse board token or URL', 'error');
+      return;
+    }
+    setScraperLoading(true);
+    setScraperResult(null);
+    try {
+      const res = await fetchApi('/admin/scrape/greenhouse/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          boardToken: scraperBoard.trim(),
+          companyName: scraperCompany.trim() || undefined,
+          limit: scraperLimit > 0 ? scraperLimit : undefined,
+          categoryOverride: scraperCategory !== 'Auto-Detect' ? scraperCategory : undefined,
+          syncDeactivations: scraperSyncDeactivations,
+        }),
+      });
+      if (res && res.success) {
+        setScraperResult(res.result);
+        showToast(res.message || 'Scraping and import completed!');
+        loadStats();
+        loadJobs(1);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to scrape and import jobs', 'error');
+    } finally {
+      setScraperLoading(false);
+    }
+  };
 
   // Load Dashboard Stats
   const loadStats = async () => {
@@ -390,6 +473,7 @@ export default function AdminDashboardPage() {
             { id: 'dashboard', label: 'Dashboard', icon: <Layers className="w-4 h-4" /> },
             { id: 'add_job', label: 'Add Job', icon: <PlusCircle className="w-4 h-4" /> },
             { id: 'manage_jobs', label: `Manage Jobs (${jobsTotal})`, icon: <Briefcase className="w-4 h-4" /> },
+            { id: 'import_greenhouse', label: 'Import Greenhouse', icon: <Download className="w-4 h-4" /> },
             { id: 'sources', label: 'Job Sources', icon: <Globe className="w-4 h-4" /> },
             { id: 'reports', label: 'Reports', icon: <FileText className="w-4 h-4" /> },
           ].map((tab) => (
@@ -961,6 +1045,317 @@ export default function AdminDashboardPage() {
           </div>
         )}
       </div>
+
+
+        {/* TAB 6: IMPORT FROM GREENHOUSE */}
+        {activeTab === 'import_greenhouse' && (
+          <div className="space-y-8">
+            <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="p-2 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400">
+                      <Download className="w-5 h-5" />
+                    </span>
+                    <h2 className="text-lg font-bold text-white">Greenhouse Direct Career Portal Scraper</h2>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                    Import verified job postings directly from any company using Greenhouse ATS. Applyra automatically cleans descriptions, extracts responsibilities & qualifications, detects salary and work modes, and tags relevant engineering skills.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 text-xs font-semibold">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Zero Ban Risk (Public API)
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="mt-6">
+                <label className="block text-xs font-semibold text-slate-400 mb-2">
+                  Quick-Import Presets (Popular Tech Companies):
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {GREENHOUSE_PRESETS.map((p) => {
+                    const isSelected = scraperBoard.toLowerCase() === p.token.toLowerCase();
+                    return (
+                      <button
+                        key={p.token}
+                        type="button"
+                        onClick={() => {
+                          setScraperBoard(p.token);
+                          setScraperCompany(p.name);
+                          setScraperPreview(null);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-amber-500 text-slate-950 font-bold shadow-md shadow-amber-500/20'
+                            : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/80 border border-slate-700/60'
+                        }`}
+                      >
+                        <span>{p.name}</span>
+                        <span className="text-[10px] opacity-70 font-mono">({p.token})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Scraper Configuration Form */}
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Greenhouse Board Token or URL <span className="text-amber-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={scraperBoard}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setScraperBoard(val);
+                      setScraperPreview(null);
+                    }}
+                    placeholder="e.g. cloudflare or figma"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/90 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-amber-400 transition"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Found in boards.greenhouse.io/<span className="text-slate-400">board_token</span>
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Company Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={scraperCompany}
+                    onChange={(e) => setScraperCompany(e.target.value)}
+                    placeholder="e.g. Cloudflare"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/90 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-amber-400 transition"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Auto-detected if left blank
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Job Import Limit
+                  </label>
+                  <select
+                    value={scraperLimit}
+                    onChange={(e) => setScraperLimit(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/90 text-white text-xs focus:outline-none focus:border-amber-400 transition"
+                  >
+                    <option value={10}>Top 10 listings</option>
+                    <option value={25}>Top 25 listings</option>
+                    <option value={50}>Top 50 listings</option>
+                    <option value={100}>Top 100 listings</option>
+                    <option value={0}>All Available listings</option>
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Limit the number of roles saved
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Category Override
+                  </label>
+                  <select
+                    value={scraperCategory}
+                    onChange={(e) => setScraperCategory(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/90 text-white text-xs focus:outline-none focus:border-amber-400 transition"
+                  >
+                    <option value="Auto-Detect">Auto-Detect per Role</option>
+                    {CATEGORIES.map((c) => (
+                      <option key={c} value={c}>
+                        {c}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Auto-categorizes by department & title
+                  </p>
+                </div>
+              </div>
+
+              {/* Sync Deactivations Toggle */}
+              <div className="mt-4 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="syncDeact"
+                  checked={scraperSyncDeactivations}
+                  onChange={(e) => setScraperSyncDeactivations(e.target.checked)}
+                  className="rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-0"
+                />
+                <label htmlFor="syncDeact" className="text-xs text-slate-400 select-none cursor-pointer">
+                  Deactivate closed roles: mark past roles for this company not present in the new feed as inactive.
+                </label>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-6 flex flex-wrap items-center gap-3 pt-6 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={handlePreviewGreenhouse}
+                  disabled={scraperPreviewing || scraperLoading}
+                  className="px-5 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  {scraperPreviewing ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-amber-400" />
+                  ) : (
+                    <Search className="w-4 h-4 text-slate-400" />
+                  )}
+                  <span>Test & Preview First 3</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleImportGreenhouse}
+                  disabled={scraperLoading || scraperPreviewing}
+                  className="px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 text-xs font-black transition flex items-center gap-2 shadow-lg shadow-amber-500/20 disabled:opacity-50"
+                >
+                  {scraperLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                      <span>Scraping & Importing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>Start Live Import</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* PREVIEW CARDS */}
+            {scraperPreview && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Search className="w-4 h-4 text-amber-400" />
+                    Preview: Found {scraperPreview.totalFound} jobs at {scraperPreview.company}
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    Showing top {scraperPreview.sampleJobs?.length} sample listings (not saved yet)
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {scraperPreview.sampleJobs?.map((pj: any, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between space-y-3"
+                    >
+                      <div>
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-sm font-bold text-white line-clamp-2">{pj.title}</h4>
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                            {pj.workMode}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                          <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                          <span>{pj.company}</span>
+                          <span className="text-slate-600">•</span>
+                          <span>{pj.location}</span>
+                        </p>
+                      </div>
+
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                          <span>Category: <strong className="text-slate-200">{pj.category}</strong></span>
+                          <span>Salary: <strong className="text-slate-200">{pj.salary}</strong></span>
+                        </div>
+
+                        {pj.skills && pj.skills.length > 0 && (
+                          <div className="flex flex-wrap gap-1 pt-1">
+                            {pj.skills.slice(0, 5).map((sk: string) => (
+                              <span
+                                key={sk}
+                                className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-300"
+                              >
+                                {sk}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+
+                      <a
+                        href={pj.originalUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 pt-2 border-t border-slate-800/80"
+                      >
+                        <span>Official Greenhouse link</span>
+                        <ExternalLink className="w-3 h-3" />
+                      </a>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* IMPORT SUCCESS RESULT BANNER */}
+            {scraperResult && (
+              <div className="p-6 rounded-3xl bg-emerald-950/30 border border-emerald-500/30 text-white space-y-4 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-emerald-300">
+                        Successfully imported listings from {scraperResult.company}!
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Board: {scraperResult.boardToken} • Total on board: {scraperResult.totalFound}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setJobsSearch(scraperResult.company);
+                      setActiveTab('manage_jobs');
+                      loadJobs(1);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5"
+                  >
+                    <span>View {scraperResult.company} Jobs</span>
+                    <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  <div className="p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Newly Added</span>
+                    <span className="text-xl font-black text-emerald-400 font-mono">+{scraperResult.imported}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Updated Existing</span>
+                    <span className="text-xl font-black text-sky-400 font-mono">{scraperResult.updated}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Deactivated (Closed)</span>
+                    <span className="text-xl font-black text-amber-400 font-mono">{scraperResult.deactivated}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Failed / Skipped</span>
+                    <span className="text-xl font-black text-slate-400 font-mono">{scraperResult.skipped}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
       {/* EDIT JOB MODAL */}
       {editingJob && (

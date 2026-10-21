@@ -1,5 +1,4 @@
 import type { Metadata } from 'next';
-import Script from 'next/script';
 import './globals.css';
 import { AuthProvider } from '@/context/AuthContext';
 import Navbar from '@/components/Navbar';
@@ -30,25 +29,18 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <Script
+        <script
           id="theme-initializer"
-          strategy="beforeInteractive"
           dangerouslySetInnerHTML={{
             __html: `
               try {
                 const savedTheme = localStorage.getItem('applyra-theme');
-                const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-                document.documentElement.classList.toggle(
-                  'dark',
-                  savedTheme ? savedTheme === 'dark' : prefersDark,
-                );
-              } catch (error) {
-                console.error('Unable to load the saved color theme:', error);
-                document.documentElement.classList.toggle(
-                  'dark',
-                  window.matchMedia('(prefers-color-scheme: dark)').matches,
-                );
-              }
+                if (savedTheme === 'dark') {
+                  document.documentElement.classList.add('dark');
+                } else {
+                  document.documentElement.classList.remove('dark');
+                }
+              } catch (_) {}
             `,
           }}
         />
