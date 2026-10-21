@@ -473,6 +473,7 @@ export default function AdminDashboardPage() {
             { id: 'dashboard', label: 'Dashboard', icon: <Layers className="w-4 h-4" /> },
             { id: 'add_job', label: 'Add Job', icon: <PlusCircle className="w-4 h-4" /> },
             { id: 'manage_jobs', label: `Manage Jobs (${jobsTotal})`, icon: <Briefcase className="w-4 h-4" /> },
+            { id: 'import_greenhouse', label: 'Import Greenhouse', icon: <Download className="w-4 h-4" /> },
             { id: 'sources', label: 'Job Sources', icon: <Globe className="w-4 h-4" /> },
             { id: 'reports', label: 'Reports', icon: <FileText className="w-4 h-4" /> },
           ].map((tab) => (
