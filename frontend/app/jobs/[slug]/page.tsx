@@ -423,11 +423,11 @@ function JobDetailContent() {
                 onClick={handleSave}
                 className={`w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-xl border text-xs font-medium transition ${
                   isSaved
-                    ? 'bg-brand-50/80 border-brand-200 text-brand-600 font-semibold dark:bg-brand-950/70 dark:border-brand-800 dark:text-brand-400'
+                    ? 'bg-brand-50 border-brand-300 text-brand-600 font-semibold'
                     : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                 }`}
               >
-                <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-brand-600 dark:fill-brand-400' : ''}`} />
+                <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-brand-600' : ''}`} />
                 <span>{isSaved ? 'Saved to Pipeline' : 'Save Job'}</span>
               </button>
             </div>
