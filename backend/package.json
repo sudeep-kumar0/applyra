@@ -13,7 +13,10 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
-    "create-admin": "ts-node -r tsconfig-paths/register scripts/create-admin.ts"
+    "create-admin": "ts-node -r tsconfig-paths/register scripts/create-admin.ts",
+    "scrape:greenhouse": "ts-node -r tsconfig-paths/register scripts/scrape-greenhouse.ts",
+    "verify-db": "node scripts/verify-db.js",
+    "get-token": "node scripts/get-token.js"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",
