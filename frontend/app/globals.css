@@ -9,14 +9,11 @@
   --background-end-rgb: 248, 250, 252;
 }
 
-html.dark {
-  --foreground-rgb: 248, 250, 252;
-  --background-start-rgb: 11, 15, 25;
+.dark {
+  color-scheme: dark;
+  --foreground-rgb: 241, 245, 249;
+  --background-start-rgb: 2, 6, 23;
   --background-end-rgb: 15, 23, 42;
-}
-
-html {
-  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 body {
