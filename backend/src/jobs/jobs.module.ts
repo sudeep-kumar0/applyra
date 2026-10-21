@@ -3,6 +3,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Job, JobSchema } from './schemas/job.schema';
 import { JobsService } from './jobs.service';
 import { JobsController } from './jobs.controller';
+import { GreenhouseScraperService } from './scrapers/greenhouse.scraper';
 import { AuthModule } from '../auth/auth.module';
 import { UsersModule } from '../users/users.module';
 
@@ -13,7 +14,7 @@ import { UsersModule } from '../users/users.module';
     UsersModule,
   ],
   controllers: [JobsController],
-  providers: [JobsService],
-  exports: [JobsService, MongooseModule],
+  providers: [JobsService, GreenhouseScraperService],
+  exports: [JobsService, GreenhouseScraperService, MongooseModule],
 })
 export class JobsModule {}
