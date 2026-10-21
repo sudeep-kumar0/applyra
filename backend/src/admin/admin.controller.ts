@@ -16,6 +16,7 @@ import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { AdminGuard } from '../auth/admin.guard';
 import { UsersService } from '../users/users.service';
 import { JobsService } from '../jobs/jobs.service';
+import { GreenhouseScraperService } from '../jobs/scrapers/greenhouse.scraper';
 import { ApplicationsService } from '../applications/applications.service';
 import { UserRole } from '../users/schemas/user.schema';
 
@@ -25,6 +26,7 @@ export class AdminController {
   constructor(
     private readonly usersService: UsersService,
     private readonly jobsService: JobsService,
+    private readonly greenhouseScraper: GreenhouseScraperService,
     private readonly applicationsService: ApplicationsService,
   ) {}
 
@@ -185,7 +187,7 @@ export class AdminController {
   @Post('set-role')
   async setUserRole(@Body() body: { email: string; role: UserRole }) {
     if (!body.email || !body.role) {
-      throw new NotFoundException('Email and role are required');
+      throw new BadRequestException('Email and role are required');
     }
     const updated = await this.usersService.setUserRole(body.email, body.role);
     if (!updated) {
@@ -198,6 +200,63 @@ export class AdminController {
         email: updated.email,
         role: updated.role,
       },
+    };
+  }
+
+  // --- Greenhouse Scraper Endpoints ---
+
+  @Get('scrape/greenhouse/presets')
+  getGreenhousePresets() {
+    return {
+      success: true,
+      presets: this.greenhouseScraper.getPresets(),
+    };
+  }
+
+  @Post('scrape/greenhouse/preview')
+  async previewGreenhouseJobs(@Body() body: { boardToken: string; limit?: number }) {
+    if (!body.boardToken || !body.boardToken.trim()) {
+      throw new BadRequestException('boardToken is required');
+    }
+    const result = await this.greenhouseScraper.previewJobs(
+      body.boardToken.trim(),
+      body.limit || 3,
+    );
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  @Post('scrape/greenhouse/import')
+  async importGreenhouseJobs(
+    @Body()
+    body: {
+      boardToken: string;
+      companyName?: string;
+      companyLogo?: string;
+      limit?: number;
+      categoryOverride?: string;
+      syncDeactivations?: boolean;
+    },
+  ) {
+    if (!body.boardToken || !body.boardToken.trim()) {
+      throw new BadRequestException('boardToken is required');
+    }
+
+    const result = await this.greenhouseScraper.importJobs({
+      boardToken: body.boardToken.trim(),
+      companyName: body.companyName?.trim(),
+      companyLogo: body.companyLogo?.trim(),
+      limit: body.limit,
+      categoryOverride: body.categoryOverride?.trim(),
+      syncDeactivations: body.syncDeactivations ?? false,
+    });
+
+    return {
+      success: true,
+      message: `Scraping completed: ${result.imported} new jobs imported, ${result.updated} updated`,
+      result,
     };
   }
 }
