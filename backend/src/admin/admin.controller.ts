@@ -17,6 +17,7 @@ import { AdminGuard } from '../auth/admin.guard';
 import { UsersService } from '../users/users.service';
 import { JobsService } from '../jobs/jobs.service';
 import { GreenhouseScraperService } from '../jobs/scrapers/greenhouse.scraper';
+import { GreenhouseCronService } from '../jobs/greenhouse-cron.service';
 import { ApplicationsService } from '../applications/applications.service';
 import { UserRole } from '../users/schemas/user.schema';
 
@@ -27,6 +28,7 @@ export class AdminController {
     private readonly usersService: UsersService,
     private readonly jobsService: JobsService,
     private readonly greenhouseScraper: GreenhouseScraperService,
+    private readonly greenhouseCron: GreenhouseCronService,
     private readonly applicationsService: ApplicationsService,
   ) {}
 
@@ -167,7 +169,6 @@ export class AdminController {
 
   @Get('reports')
   async getReports() {
-    // Currently return verified clean status / reports queue
     return {
       success: true,
       reports: [],
@@ -213,14 +214,25 @@ export class AdminController {
     };
   }
 
+  @Get('scrape/greenhouse/cron-status')
+  getGreenhouseCronStatus() {
+    return {
+      success: true,
+      status: this.greenhouseCron.getStatus(),
+    };
+  }
+
   @Post('scrape/greenhouse/preview')
-  async previewGreenhouseJobs(@Body() body: { boardToken: string; limit?: number }) {
+  async previewGreenhouseJobs(
+    @Body() body: { boardToken: string; limit?: number; indiaOnly?: boolean },
+  ) {
     if (!body.boardToken || !body.boardToken.trim()) {
       throw new BadRequestException('boardToken is required');
     }
     const result = await this.greenhouseScraper.previewJobs(
       body.boardToken.trim(),
       body.limit || 3,
+      body.indiaOnly ?? false,
     );
     return {
       success: true,
@@ -238,6 +250,7 @@ export class AdminController {
       limit?: number;
       categoryOverride?: string;
       syncDeactivations?: boolean;
+      indiaOnly?: boolean;
     },
   ) {
     if (!body.boardToken || !body.boardToken.trim()) {
@@ -251,11 +264,34 @@ export class AdminController {
       limit: body.limit,
       categoryOverride: body.categoryOverride?.trim(),
       syncDeactivations: body.syncDeactivations ?? false,
+      indiaOnly: body.indiaOnly ?? false,
     });
 
     return {
       success: true,
-      message: `Scraping completed: ${result.imported} new jobs imported, ${result.updated} updated`,
+      message: `Scraping completed: ${result.imported} new jobs imported, ${result.updated} updated, ${result.skipped} skipped/filtered`,
+      result,
+    };
+  }
+
+  @Post('scrape/greenhouse/scrape-all')
+  async scrapeAllGreenhouse(
+    @Body()
+    body: {
+      indiaOnly?: boolean;
+      limit?: number;
+      syncDeactivations?: boolean;
+    },
+  ) {
+    const result = await this.greenhouseCron.runBatchScrape({
+      indiaOnly: body.indiaOnly !== false,
+      limit: body.limit,
+      syncDeactivations: body.syncDeactivations ?? true,
+    });
+
+    return {
+      success: true,
+      message: `Batch scrape completed: ${result.totalImported} new jobs imported, ${result.totalUpdated} updated across ${result.successfulCompanies} companies`,
       result,
     };
   }

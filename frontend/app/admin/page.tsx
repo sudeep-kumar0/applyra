@@ -68,16 +68,38 @@ const SOURCES = [
 
 
 const GREENHOUSE_PRESETS = [
-  { name: 'Cloudflare', token: 'cloudflare', category: 'DevOps/Cloud' },
-  { name: 'GitLab', token: 'gitlab', category: 'DevOps/Cloud' },
-  { name: 'Figma', token: 'figma', category: 'Software' },
-  { name: 'Reddit', token: 'reddit', category: 'Software' },
-  { name: 'Brex', token: 'brex', category: 'Finance' },
-  { name: 'Datadog', token: 'datadog', category: 'DevOps/Cloud' },
-  { name: 'Gusto', token: 'gusto', category: 'HR' },
-  { name: 'DoorDash', token: 'doordash', category: 'Software' },
-  { name: 'Coinbase', token: 'coinbase', category: 'Software' },
-  { name: 'Vercel', token: 'vercel', category: 'Software' },
+  // Top tech companies & MNCs with verified active India development centers
+  { name: 'InMobi', token: 'inmobi', category: 'Software', isIndia: true },
+  { name: 'Groww', token: 'groww', category: 'Finance', isIndia: true },
+  { name: 'Databricks', token: 'databricks', category: 'Data', isIndia: true },
+  { name: 'MongoDB', token: 'mongodb', category: 'Data', isIndia: true },
+  { name: 'Okta', token: 'okta', category: 'Cybersecurity', isIndia: true },
+  { name: 'Zscaler', token: 'zscaler', category: 'Cybersecurity', isIndia: true },
+  { name: 'Stripe', token: 'stripe', category: 'Finance', isIndia: true },
+  { name: 'Rubrik', token: 'rubrik', category: 'DevOps/Cloud', isIndia: true },
+  { name: 'Elastic', token: 'elastic', category: 'Data', isIndia: true },
+  { name: 'Twilio', token: 'twilio', category: 'Software', isIndia: true },
+  { name: 'Toast', token: 'toast', category: 'Software', isIndia: true },
+  { name: 'Netskope', token: 'netskope', category: 'Cybersecurity', isIndia: true },
+  { name: 'Roblox', token: 'roblox', category: 'Software', isIndia: true },
+  { name: 'Datadog', token: 'datadog', category: 'DevOps/Cloud', isIndia: true },
+  { name: 'Coinbase', token: 'coinbase', category: 'Software', isIndia: true },
+  { name: 'Airbnb', token: 'airbnb', category: 'Software', isIndia: true },
+  { name: 'Deliveroo', token: 'deliveroo', category: 'Software', isIndia: true },
+  { name: 'Coursera', token: 'coursera', category: 'Software', isIndia: true },
+  { name: 'Samsara', token: 'samsara', category: 'DevOps/Cloud', isIndia: true },
+  { name: 'Cloudflare', token: 'cloudflare', category: 'DevOps/Cloud', isIndia: true },
+  { name: 'LaunchDarkly', token: 'launchdarkly', category: 'DevOps/Cloud', isIndia: true },
+  { name: 'Starburst', token: 'starburst', category: 'Data', isIndia: true },
+  { name: 'Roku', token: 'roku', category: 'Software', isIndia: true },
+  { name: 'Yugabyte', token: 'yugabyte', category: 'Data', isIndia: true },
+  { name: 'Figma', token: 'figma', category: 'Software', isIndia: true },
+  { name: 'Cockroach Labs', token: 'cockroachlabs', category: 'Data', isIndia: true },
+  { name: 'Fastly', token: 'fastly', category: 'DevOps/Cloud', isIndia: true },
+  { name: 'Scale AI', token: 'scaleai', category: 'AI/ML', isIndia: true },
+  { name: 'Vercel', token: 'vercel', category: 'Software', isIndia: true },
+  { name: 'GitLab', token: 'gitlab', category: 'DevOps/Cloud', isIndia: true },
+  { name: 'Canonical', token: 'canonical', category: 'DevOps/Cloud', isIndia: true },
 ];
 
 export default function AdminDashboardPage() {
@@ -153,6 +175,9 @@ export default function AdminDashboardPage() {
   const [scraperPreviewing, setScraperPreviewing] = useState(false);
   const [scraperPreview, setScraperPreview] = useState<any | null>(null);
   const [scraperResult, setScraperResult] = useState<any | null>(null);
+  const [scraperIndiaOnly, setScraperIndiaOnly] = useState<boolean>(true);
+  const [batchScraping, setBatchScraping] = useState<boolean>(false);
+  const [batchResult, setBatchResult] = useState<any | null>(null);
 
   const handlePreviewGreenhouse = async () => {
     if (!scraperBoard.trim()) {
@@ -164,7 +189,7 @@ export default function AdminDashboardPage() {
     try {
       const res = await fetchApi('/admin/scrape/greenhouse/preview', {
         method: 'POST',
-        body: JSON.stringify({ boardToken: scraperBoard.trim(), limit: 3 }),
+        body: JSON.stringify({ boardToken: scraperBoard.trim(), limit: 3, indiaOnly: scraperIndiaOnly }),
       });
       if (res && res.success) {
         setScraperPreview(res);
@@ -194,6 +219,7 @@ export default function AdminDashboardPage() {
           limit: scraperLimit > 0 ? scraperLimit : undefined,
           categoryOverride: scraperCategory !== 'Auto-Detect' ? scraperCategory : undefined,
           syncDeactivations: scraperSyncDeactivations,
+          indiaOnly: scraperIndiaOnly,
         }),
       });
       if (res && res.success) {
@@ -206,6 +232,43 @@ export default function AdminDashboardPage() {
       showToast(err.message || 'Failed to scrape and import jobs', 'error');
     } finally {
       setScraperLoading(false);
+    }
+  };
+
+  const handleBatchScrapeAll = async () => {
+    if (
+      !confirm(
+        `Are you sure you want to scrape jobs from all ${GREENHOUSE_PRESETS.length} registered companies${
+          scraperIndiaOnly ? ' (India & Remote Only)' : ''
+        }? This processes all company boards and saves matching jobs live into MongoDB.`,
+      )
+    ) {
+      return;
+    }
+    setBatchScraping(true);
+    setBatchResult(null);
+    try {
+      const res = await fetchApi('/admin/scrape/greenhouse/scrape-all', {
+        method: 'POST',
+        body: JSON.stringify({
+          indiaOnly: scraperIndiaOnly,
+          syncDeactivations: scraperSyncDeactivations,
+        }),
+      });
+      if (res && res.success) {
+        setBatchResult(res.result);
+        showToast(
+          `Batch scrape complete: +${res.result.totalImported} imported, ${res.result.totalUpdated} updated!`,
+        );
+        loadStats();
+        loadJobs(1);
+      } else {
+        showToast(res?.message || 'Batch scrape encountered issues', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Batch scrape failed', 'error');
+    } finally {
+      setBatchScraping(false);
     }
   };
 
@@ -1044,12 +1107,118 @@ export default function AdminDashboardPage() {
             </p>
           </div>
         )}
-      </div>
-
 
         {/* TAB 6: IMPORT FROM GREENHOUSE */}
         {activeTab === 'import_greenhouse' && (
           <div className="space-y-8">
+            {/* DAILY AUTOMATED CRON & BATCH SCRAPER CARD */}
+            <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-br from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/30 flex flex-col lg:flex-row lg:items-center justify-between gap-6 shadow-xl">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="p-2.5 rounded-2xl bg-amber-500/20 text-amber-400 border border-amber-500/30 flex items-center justify-center">
+                    <Clock className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>Daily Automated Greenhouse Synchronization</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 uppercase tracking-wider">
+                        Active Cron (02:00 AM)
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Scheduled every day at <strong>02:00 AM server time (0 2 * * *)</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                  Applyra automatically scrapes <strong>all {GREENHOUSE_PRESETS.length} registered companies</strong> with <strong>India & Remote Only</strong> filtering enabled. Jobs located in foreign countries (US, UK, Europe, etc.) or restricted to foreign remotes are automatically filtered out.
+                </p>
+
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-1">
+                  <span className="flex items-center gap-1.5 text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{GREENHOUSE_PRESETS.filter((p) => p.isIndia).length} Companies with India Dev Centers</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-amber-400">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{GREENHOUSE_PRESETS.filter((p) => !p.isIndia).length} Global Remote Companies</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex-shrink-0 flex flex-col sm:flex-row gap-3">
+                <button
+                  type="button"
+                  onClick={handleBatchScrapeAll}
+                  disabled={batchScraping || scraperLoading}
+                  className="px-6 py-3.5 rounded-2xl bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 text-xs font-black transition flex items-center justify-center gap-2.5 shadow-xl shadow-amber-500/20 disabled:opacity-50 whitespace-nowrap"
+                >
+                  {batchScraping ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-slate-950" />
+                      <span>Batch Scraping All Boards...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 text-slate-950" />
+                      <span>Sync All {GREENHOUSE_PRESETS.length} Companies Now</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* BATCH SCRAPE RESULT BANNER */}
+            {batchResult && (
+              <div className="p-6 md:p-8 rounded-3xl bg-emerald-950/40 border border-emerald-500/30 text-white space-y-4 animate-in fade-in duration-200">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-12 h-12 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center">
+                      <CheckCircle2 className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-bold text-emerald-300">
+                        Batch Scrape Completed Across {batchResult.successfulCompanies}/{batchResult.totalCompanies} Companies!
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Total job listings found on boards: {batchResult.totalFound} • Filter: {scraperIndiaOnly ? 'India & Remote Only' : 'All Countries'}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setActiveTab('manage_jobs');
+                      loadJobs(1);
+                    }}
+                    className="px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5 self-start sm:self-auto"
+                  >
+                    <span>View All Jobs</span>
+                    <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  <div className="p-4 rounded-2xl bg-slate-900/90 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">Newly Imported</span>
+                    <span className="text-2xl font-black text-emerald-400 font-mono">+{batchResult.totalImported}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-900/90 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">Updated Existing</span>
+                    <span className="text-2xl font-black text-sky-400 font-mono">{batchResult.totalUpdated}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-900/90 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">Filtered / Non-India</span>
+                    <span className="text-2xl font-black text-slate-400 font-mono">{batchResult.totalSkipped}</span>
+                  </div>
+                  <div className="p-4 rounded-2xl bg-slate-900/90 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block mb-1">Failed Boards</span>
+                    <span className="text-2xl font-black text-rose-400 font-mono">{batchResult.failedCompanies}</span>
+                  </div>
+                </div>
+              </div>
+            )}
             <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 md:p-8">
               <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
                 <div>
@@ -1096,6 +1265,7 @@ export default function AdminDashboardPage() {
                         }`}
                       >
                         <span>{p.name}</span>
+                        {p.isIndia && <span title="India Office / Hub" className="text-xs">🇮🇳</span>}
                         <span className="text-[10px] opacity-70 font-mono">({p.token})</span>
                       </button>
                     );
@@ -1183,18 +1353,34 @@ export default function AdminDashboardPage() {
                 </div>
               </div>
 
-              {/* Sync Deactivations Toggle */}
-              <div className="mt-4 flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  id="syncDeact"
-                  checked={scraperSyncDeactivations}
-                  onChange={(e) => setScraperSyncDeactivations(e.target.checked)}
-                  className="rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-0"
-                />
-                <label htmlFor="syncDeact" className="text-xs text-slate-400 select-none cursor-pointer">
-                  Deactivate closed roles: mark past roles for this company not present in the new feed as inactive.
-                </label>
+              {/* Filter & Sync Toggles */}
+              <div className="mt-5 p-4 rounded-2xl bg-slate-800/60 border border-slate-700/80 space-y-2.5">
+                <div className="flex items-center gap-2.5">
+                  <input
+                    type="checkbox"
+                    id="indiaOnlyCheck"
+                    checked={scraperIndiaOnly}
+                    onChange={(e) => setScraperIndiaOnly(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 w-4 h-4 cursor-pointer"
+                  />
+                  <label htmlFor="indiaOnlyCheck" className="text-xs font-bold text-amber-300 select-none cursor-pointer flex items-center gap-1.5">
+                    <span>🇮🇳 India & Remote Only</span>
+                    <span className="text-[11px] font-normal text-slate-300">(Discards jobs physically located in US, UK, Europe, etc. or restricted to foreign remotes)</span>
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2 pl-6">
+                  <input
+                    type="checkbox"
+                    id="syncDeact"
+                    checked={scraperSyncDeactivations}
+                    onChange={(e) => setScraperSyncDeactivations(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-800 text-amber-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                  />
+                  <label htmlFor="syncDeact" className="text-xs text-slate-400 select-none cursor-pointer">
+                    Deactivate closed roles: mark past roles for this company not present in the new feed as inactive.
+                  </label>
+                </div>
               </div>
 
               {/* Action Buttons */}
@@ -1247,59 +1433,73 @@ export default function AdminDashboardPage() {
                   </span>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  {scraperPreview.sampleJobs?.map((pj: any, idx: number) => (
-                    <div
-                      key={idx}
-                      className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between space-y-3"
-                    >
-                      <div>
-                        <div className="flex items-start justify-between gap-2">
-                          <h4 className="text-sm font-bold text-white line-clamp-2">{pj.title}</h4>
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
-                            {pj.workMode}
-                          </span>
-                        </div>
-                        <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
-                          <Building2 className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{pj.company}</span>
-                          <span className="text-slate-600">•</span>
-                          <span>{pj.location}</span>
-                        </p>
-                      </div>
-
-                      <div className="space-y-2 text-xs">
-                        <div className="flex items-center justify-between text-slate-400 text-[11px]">
-                          <span>Category: <strong className="text-slate-200">{pj.category}</strong></span>
-                          <span>Salary: <strong className="text-slate-200">{pj.salary}</strong></span>
-                        </div>
-
-                        {pj.skills && pj.skills.length > 0 && (
-                          <div className="flex flex-wrap gap-1 pt-1">
-                            {pj.skills.slice(0, 5).map((sk: string) => (
-                              <span
-                                key={sk}
-                                className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-300"
-                              >
-                                {sk}
-                              </span>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-
-                      <a
-                        href={pj.originalUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 pt-2 border-t border-slate-800/80"
-                      >
-                        <span>Official Greenhouse link</span>
-                        <ExternalLink className="w-3 h-3" />
-                      </a>
+                {scraperPreview.sampleJobs?.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 text-center">
+                    <div className="w-12 h-12 rounded-full bg-amber-500/10 text-amber-400 flex items-center justify-center mx-auto mb-3">
+                      <Building2 className="w-6 h-6" />
                     </div>
-                  ))}
-                </div>
+                    <h4 className="text-sm font-bold text-white mb-1">
+                      No India or Worldwide Remote jobs found at {scraperPreview.company}
+                    </h4>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto">
+                      All active openings at this company are currently restricted to foreign territories (such as US, UK, Europe, etc.).
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {scraperPreview.sampleJobs?.map((pj: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between space-y-3"
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-sm font-bold text-white line-clamp-2">{pj.title}</h4>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20">
+                              {pj.workMode}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                            <span>{pj.company}</span>
+                            <span className="text-slate-600">•</span>
+                            <span>{pj.location}</span>
+                          </p>
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                            <span>Category: <strong className="text-slate-200">{pj.category}</strong></span>
+                            <span>Salary: <strong className="text-slate-200">{pj.salary}</strong></span>
+                          </div>
+
+                          {pj.skills && pj.skills.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {pj.skills.slice(0, 5).map((sk: string) => (
+                                <span
+                                  key={sk}
+                                  className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-300"
+                                >
+                                  {sk}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <a
+                          href={pj.originalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-amber-400 hover:underline flex items-center gap-1 pt-2 border-t border-slate-800/80"
+                        >
+                          <span>Official Greenhouse link</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
@@ -1356,6 +1556,7 @@ export default function AdminDashboardPage() {
             )}
           </div>
         )}
+      </div>
 
       {/* EDIT JOB MODAL */}
       {editingJob && (
