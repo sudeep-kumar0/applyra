@@ -20,6 +20,11 @@ import {
   Download,
   FileCheck,
   Briefcase,
+  Layers,
+  ArrowLeft,
+  ChevronRight,
+  Target,
+  Zap,
 } from 'lucide-react';
 
 interface ResumeFile {
@@ -51,6 +56,60 @@ interface AtsResult {
   tip: string;
 }
 
+// Benchmark profiles for direct navbar visitors
+interface RoleBenchmark {
+  id: string;
+  title: string;
+  category: string;
+  description: string;
+  skills: string[];
+}
+
+const BENCHMARK_ROLES: RoleBenchmark[] = [
+  {
+    id: 'software-engineer',
+    title: 'Software Developer / SDE',
+    category: 'Core Engineering',
+    description: 'General full-cycle software engineering, OOP, algorithms, and system design.',
+    skills: ['Java', 'Python', 'C++', 'Data Structures', 'OOP', 'SQL', 'Git', 'REST APIs', 'Docker'],
+  },
+  {
+    id: 'mern-developer',
+    title: 'MERN / Full Stack Developer',
+    category: 'Web Development',
+    description: 'Modern JavaScript/TypeScript web apps with React, Node.js, Express, and MongoDB.',
+    skills: ['React', 'Node.js', 'JavaScript', 'TypeScript', 'Express', 'MongoDB', 'REST APIs', 'HTML', 'CSS', 'Git'],
+  },
+  {
+    id: 'ai-ml-engineer',
+    title: 'AI / Machine Learning Engineer',
+    category: 'Data & AI',
+    description: 'Model development, deep learning frameworks, NLP, LLMs, and Python data pipelines.',
+    skills: ['Python', 'Machine Learning', 'Deep Learning', 'PyTorch', 'TensorFlow', 'Scikit-learn', 'SQL', 'Pandas', 'AWS'],
+  },
+  {
+    id: 'backend-engineer',
+    title: 'Backend Engineer',
+    category: 'Server & Cloud',
+    description: 'Scalable microservices, distributed systems, caching, message queues, and cloud infrastructure.',
+    skills: ['Java', 'Spring Boot', 'Node.js', 'PostgreSQL', 'Redis', 'Docker', 'Kubernetes', 'Microservices', 'AWS', 'CI/CD'],
+  },
+  {
+    id: 'frontend-engineer',
+    title: 'Frontend React Engineer',
+    category: 'Web Development',
+    description: 'Performant web interfaces, state management, responsive designs, and client performance.',
+    skills: ['React', 'Next.js', 'TypeScript', 'JavaScript', 'Tailwind CSS', 'Redux', 'HTML', 'CSS', 'Web Performance'],
+  },
+  {
+    id: 'cloud-devops-engineer',
+    title: 'DevOps & Cloud Engineer',
+    category: 'Infrastructure',
+    description: 'CI/CD automation, Kubernetes container orchestration, infrastructure as code, and cloud monitoring.',
+    skills: ['Docker', 'Kubernetes', 'AWS', 'Linux', 'CI/CD', 'Git', 'Terraform', 'Python', 'Bash'],
+  },
+];
+
 function ResumeContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -63,14 +122,16 @@ function ResumeContent() {
   const [uploadError, setUploadError] = useState('');
   const [uploadSuccess, setUploadSuccess] = useState('');
   const [deletingKey, setDeletingKey] = useState<string | null>(null);
-  const [dragOver, setDragOver] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ATS
-  const [jobSlug, setJobSlug] = useState(searchParams.get('job') || '');
+  // ATS for specific job
+  const jobSlugParam = searchParams.get('job') || '';
   const [atsLoading, setAtsLoading] = useState(false);
   const [atsResult, setAtsResult] = useState<AtsResult | null>(null);
   const [atsError, setAtsError] = useState('');
+
+  // General Benchmark Selected Role
+  const [selectedBenchmarkId, setSelectedBenchmarkId] = useState<string>('software-engineer');
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -111,17 +172,13 @@ function ResumeContent() {
   }, [user, loadActiveResumeAndFiles]);
 
   const runAts = useCallback(
-    async (slug?: string) => {
-      const job = slug || jobSlug;
-      if (!job.trim()) {
-        setAtsError('Please enter a job slug or pick a job below.');
-        return;
-      }
+    async (slug: string) => {
+      if (!slug.trim()) return;
       setAtsLoading(true);
       setAtsResult(null);
       setAtsError('');
       try {
-        const res = await fetchApi(`/resume/ats?job=${encodeURIComponent(job.trim())}`);
+        const res = await fetchApi(`/resume/ats?job=${encodeURIComponent(slug.trim())}`);
         if (res && res.success) {
           setAtsResult(res as AtsResult);
         }
@@ -131,17 +188,17 @@ function ResumeContent() {
         setAtsLoading(false);
       }
     },
-    [jobSlug],
+    [],
   );
 
-  // Auto-run ATS if ?job= param is in the URL on initial mount
+  // Auto-run ATS if ?job= param is present in URL
   useEffect(() => {
-    const slug = searchParams.get('job');
-    if (slug && user) {
-      setJobSlug(slug);
-      runAts(slug);
+    if (jobSlugParam && user) {
+      runAts(jobSlugParam);
+    } else {
+      setAtsResult(null);
     }
-  }, [user, searchParams, runAts]);
+  }, [user, jobSlugParam, runAts]);
 
   const handleFileUpload = async (file: File) => {
     setUploadError('');
@@ -186,9 +243,8 @@ function ResumeContent() {
       setUploadSuccess(`"${data.fileName}" uploaded & parsed! Active resume updated.`);
       await loadActiveResumeAndFiles();
 
-      // Automatically re-run ATS check for the current job if one is loaded
-      if (jobSlug.trim()) {
-        runAts(jobSlug.trim());
+      if (jobSlugParam) {
+        runAts(jobSlugParam);
       }
     } catch (err: any) {
       setUploadError(err.message || 'Upload failed. Please try again.');
@@ -203,13 +259,6 @@ function ResumeContent() {
     e.target.value = '';
   };
 
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    setDragOver(false);
-    const file = e.dataTransfer.files?.[0];
-    if (file) handleFileUpload(file);
-  };
-
   const handleDelete = async (fileKey: string) => {
     if (!confirm('Delete this resume? This cannot be undone.')) return;
     setDeletingKey(fileKey);
@@ -217,8 +266,8 @@ function ResumeContent() {
       const encodedKey = encodeURIComponent(fileKey);
       await fetchApi(`/resume/${encodedKey}`, { method: 'DELETE' });
       await loadActiveResumeAndFiles();
-      if (jobSlug.trim()) {
-        runAts(jobSlug.trim());
+      if (jobSlugParam) {
+        runAts(jobSlugParam);
       }
     } catch (err: any) {
       alert(err.message || 'Delete failed');
@@ -261,272 +310,254 @@ function ResumeContent() {
     );
   }
 
+  const selectedBenchmark =
+    BENCHMARK_ROLES.find((r) => r.id === selectedBenchmarkId) || BENCHMARK_ROLES[0];
+
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-10">
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
-        {/* Header */}
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        {/* Hidden File Input */}
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.docx"
+          className="hidden"
+          onChange={handleInputChange}
+        />
+
+        {/* ── HEADER ─────────────────────────────────────────────────── */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2">
           <div>
-            <div className="flex items-center gap-2 mb-2">
+            <div className="flex items-center gap-2 mb-1">
               <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1">
                 <Shield className="w-3 h-3" />
-                Resume-Driven ATS Matcher
+                ATS Engine & Vault
               </span>
             </div>
             <h1 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white">
-              Resume Management & ATS Engine
+              Resume & ATS Matcher
             </h1>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Upload your actual resume (PDF/DOCX). Our engine reads the text from your resume and matches required skills against any job in real time.
+              Inspect your ATS readiness across industry roles and evaluate direct job fit in real time.
             </p>
           </div>
 
           <Link
             href="/jobs"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs shadow-sm transition self-start"
+            className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs shadow-sm transition self-start"
           >
-            <span>Browse Jobs</span>
-            <ArrowRight className="w-4 h-4" />
+            <Briefcase className="w-3.5 h-3.5" />
+            <span>Explore Jobs</span>
           </Link>
         </div>
 
-        {/* ── ACTIVE RESUME BANNER ────────────────────────────────────── */}
-        {activeResume?.hasResume ? (
-          <div className="p-5 rounded-2xl bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-transparent border border-emerald-200 dark:border-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-            <div className="flex items-center gap-3">
-              <div className="w-11 h-11 rounded-xl bg-emerald-600 text-white flex items-center justify-center flex-shrink-0 shadow-sm">
-                <FileCheck className="w-6 h-6" />
+        {/* ── SLEEK ACTIVE RESUME BAR (Compact - No giant empty dropzone) ── */}
+        <div className="p-4 sm:p-5 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-sm">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3 min-w-0">
+              <div
+                className={`w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                  activeResume?.hasResume
+                    ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-950/80 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
+                    : 'bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500'
+                }`}
+              >
+                {activeResume?.hasResume ? <FileCheck className="w-5 h-5" /> : <FileText className="w-5 h-5" />}
               </div>
-              <div>
+              <div className="min-w-0">
                 <div className="flex items-center gap-2">
-                  <span className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-300">
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Active Resume
                   </span>
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-100 dark:bg-emerald-900 text-emerald-800 dark:text-emerald-200">
-                    Live for ATS Matching
-                  </span>
+                  {activeResume?.hasResume && (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 dark:bg-emerald-950 text-emerald-800 dark:text-emerald-300">
+                      Live for ATS
+                    </span>
+                  )}
                 </div>
-                <p className="text-sm font-bold text-slate-900 dark:text-white mt-0.5">
-                  {activeResume.fileName}
+                <p className="text-sm font-bold text-slate-900 dark:text-white truncate mt-0.5">
+                  {activeResume?.hasResume ? activeResume.fileName : 'No resume uploaded yet'}
                 </p>
-                {activeResume.uploadedAt && (
-                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                    Uploaded on {new Date(activeResume.uploadedAt).toLocaleDateString()}
-                  </p>
+                <p className="text-[11px] text-slate-400">
+                  {activeResume?.hasResume && activeResume.uploadedAt
+                    ? `Uploaded on ${new Date(activeResume.uploadedAt).toLocaleDateString()}`
+                    : 'PDF or DOCX (Max 10MB) — parsed automatically'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 self-start sm:self-auto flex-shrink-0">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploading}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:text-slate-900 dark:hover:bg-slate-100 text-xs font-semibold shadow-sm transition disabled:opacity-50"
+              >
+                {uploading ? (
+                  <>
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    <span>Uploading & Parsing...</span>
+                  </>
+                ) : (
+                  <>
+                    <UploadCloud className="w-3.5 h-3.5" />
+                    <span>{activeResume?.hasResume ? 'Replace / Upload New' : 'Upload Resume'}</span>
+                  </>
                 )}
-              </div>
-            </div>
-
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="px-4 py-2 rounded-xl bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs font-semibold text-slate-800 dark:text-slate-200 shadow-sm transition self-start sm:self-auto"
-            >
-              Upload New Version / Change
-            </button>
-          </div>
-        ) : (
-          <div className="p-5 rounded-2xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 flex items-start gap-3">
-            <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-            <div>
-              <p className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                No resume uploaded yet
-              </p>
-              <p className="text-xs text-amber-700 dark:text-amber-400 mt-0.5">
-                Upload your resume below. Once uploaded, you can check your ATS match score for any job listing with a single click.
-              </p>
+              </button>
             </div>
           </div>
-        )}
 
-        {/* ── UPLOAD ZONE ─────────────────────────────────────────────── */}
-        <div
-          onDragOver={(e) => {
-            e.preventDefault();
-            setDragOver(true);
-          }}
-          onDragLeave={() => setDragOver(false)}
-          onDrop={handleDrop}
-          onClick={() => fileInputRef.current?.click()}
-          className={`p-10 rounded-3xl border-2 border-dashed cursor-pointer transition text-center
-            ${
-              dragOver
-                ? 'border-brand-500 bg-brand-50 dark:bg-brand-950/40'
-                : 'border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 hover:border-brand-400 hover:bg-brand-50/30 dark:hover:bg-brand-950/20'
-            }`}
-        >
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".pdf,.docx"
-            className="hidden"
-            onChange={handleInputChange}
-          />
-          {uploading ? (
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-10 h-10 text-brand-600 animate-spin" />
-              <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                Uploading & parsing resume text...
-              </p>
+          {/* Feedback alerts */}
+          {uploadSuccess && (
+            <div className="mt-3 flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-xs">
+              <CheckCircle2 className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>{uploadSuccess}</span>
             </div>
-          ) : (
-            <div className="flex flex-col items-center gap-3">
-              <div className="w-14 h-14 rounded-2xl bg-brand-50 dark:bg-brand-950 flex items-center justify-center text-brand-600">
-                <UploadCloud className="w-7 h-7" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-slate-900 dark:text-white">
-                  Drop your resume here, or <span className="text-brand-600">click to browse</span>
-                </p>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                  PDF or DOCX · Max 10MB · Automatically extracts skills
-                </p>
-              </div>
+          )}
+          {uploadError && (
+            <div className="mt-3 flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-xs">
+              <AlertCircle className="w-3.5 h-3.5 flex-shrink-0" />
+              <span>{uploadError}</span>
             </div>
           )}
         </div>
 
-        {/* Upload feedback */}
-        {uploadSuccess && (
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 text-sm">
-            <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
-            {uploadSuccess}
-          </div>
-        )}
-        {uploadError && (
-          <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-sm">
-            <AlertCircle className="w-4 h-4 flex-shrink-0" />
-            {uploadError}
-          </div>
-        )}
-
-        {/* ── ATS SCORE ENGINE ─────────────────────────────────────────── */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
-          <div className="px-6 py-5 border-b border-slate-100 dark:border-slate-800">
-            <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-teal-600" />
-              ATS Job Match Engine
-            </h2>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-              Select or enter a job to check whether the required skills are present in your uploaded resume.
-            </p>
-          </div>
-
-          <div className="p-6 space-y-5">
-            {/* Job slug input */}
-            <div className="flex gap-3">
-              <input
-                type="text"
-                value={jobSlug}
-                onChange={(e) => setJobSlug(e.target.value)}
-                placeholder="Enter job slug, e.g. java-full-stack-developer-tcs-bengaluru"
-                className="flex-1 px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-sm text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-brand-500"
-                onKeyDown={(e) => e.key === 'Enter' && runAts()}
-              />
+        {/* ── CASE 1: SPECIFIC JOB ATS MATCH VIEW (When ?job= is passed) ── */}
+        {jobSlugParam ? (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
               <button
-                onClick={() => runAts()}
-                disabled={atsLoading || !jobSlug.trim()}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white font-semibold text-xs transition"
+                onClick={() => router.push('/resume')}
+                className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500 hover:text-brand-600 transition"
               >
-                {atsLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
-                Check Match
+                <ArrowLeft className="w-3.5 h-3.5" />
+                <span>Back to General Roles & Overview</span>
               </button>
-            </div>
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Tip: You can also click <span className="font-semibold text-slate-700 dark:text-slate-200">"Check Resume Match"</span> on any job card from the{' '}
-              <Link href="/jobs" className="underline text-brand-600 dark:text-brand-400">
-                Jobs page
-              </Link>{' '}
-              or{' '}
-              <Link href="/saved-jobs" className="underline text-teal-600 dark:text-teal-400">
-                Saved Jobs
-              </Link>{' '}
-              to check it directly.
-            </p>
 
-            {atsError && (
-              <div className="flex items-start gap-2 px-4 py-3 rounded-xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-sm">
-                <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                <span>{atsError}</span>
+              <Link
+                href={`/jobs/${jobSlugParam}`}
+                className="text-xs font-semibold text-brand-600 hover:underline inline-flex items-center gap-1"
+              >
+                <span>View Full Job Listing</span>
+                <ChevronRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {atsLoading && (
+              <div className="p-12 text-center bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800">
+                <Loader2 className="w-8 h-8 animate-spin text-brand-600 mx-auto mb-3" />
+                <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                  Scanning your resume against this job...
+                </p>
+                <p className="text-xs text-slate-400 mt-1">Comparing required skills and keywords</p>
               </div>
             )}
 
-            {atsResult && (
-              <div className="space-y-5 pt-2">
+            {atsError && (
+              <div className="p-6 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300 text-sm flex items-start gap-3">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="font-bold">ATS Check Failed</p>
+                  <p className="text-xs mt-1">{atsError}</p>
+                </div>
+              </div>
+            )}
+
+            {atsResult && !atsLoading && (
+              <div className="space-y-6">
                 {!atsResult.hasResume ? (
-                  <div className="p-6 rounded-2xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40">
-                    <div className="flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <h4 className="text-sm font-bold text-amber-800 dark:text-amber-300">
-                          Please Upload Your Resume First
-                        </h4>
-                        <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                          You are checking "{atsResult.jobTitle}" at {atsResult.company}. To calculate your real ATS match score, upload your resume PDF in the upload section above.
-                        </p>
-                        <button
-                          onClick={() => fileInputRef.current?.click()}
-                          className="mt-3 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition"
-                        >
-                          Upload Resume Now
-                        </button>
-                      </div>
-                    </div>
+                  <div className="p-8 rounded-3xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950/40 text-center max-w-lg mx-auto">
+                    <AlertCircle className="w-10 h-10 text-amber-600 mx-auto mb-3" />
+                    <h3 className="text-base font-bold text-amber-900 dark:text-amber-200">
+                      Resume Required for ATS Scoring
+                    </h3>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1 leading-relaxed">
+                      You are inspecting <strong>{atsResult.jobTitle}</strong> at <strong>{atsResult.company}</strong>. Upload your resume above to calculate your exact match score.
+                    </p>
+                    <button
+                      onClick={() => fileInputRef.current?.click()}
+                      className="mt-4 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs shadow transition"
+                    >
+                      Upload Resume Now
+                    </button>
                   </div>
                 ) : (
                   <>
-                    {/* Score card */}
+                    {/* Main Score Hero Card */}
                     <div
-                      className={`rounded-2xl border p-6 flex flex-col sm:flex-row items-center gap-6 ${scoreBg(
+                      className={`p-6 sm:p-8 rounded-3xl border shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 ${scoreBg(
                         atsResult.score,
                       )}`}
                     >
-                      <div className="flex-shrink-0 text-center">
-                        <div
-                          className={`text-5xl font-black font-mono ${scoreColor(atsResult.score)}`}
-                        >
-                          {atsResult.score}%
-                        </div>
-                        <div className={`text-xs font-bold mt-1 ${scoreColor(atsResult.score)}`}>
-                          {atsResult.level} Match
-                        </div>
-                      </div>
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2 mb-1">
-                          <span className="text-xs font-semibold px-2 py-0.5 rounded bg-white/70 dark:bg-slate-900/70 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
-                            Resume: {atsResult.resumeFileName || activeResume?.fileName}
+                      <div className="flex flex-col sm:flex-row items-center gap-6 text-center sm:text-left">
+                        <div className="flex-shrink-0">
+                          <div
+                            className={`text-5xl sm:text-6xl font-black font-mono tracking-tight ${scoreColor(
+                              atsResult.score,
+                            )}`}
+                          >
+                            {atsResult.score}%
+                          </div>
+                          <span
+                            className={`inline-block px-2.5 py-0.5 rounded-full text-xs font-bold mt-1.5 ${scoreColor(
+                              atsResult.score,
+                            )} bg-white/70 dark:bg-slate-900/70 border border-current`}
+                          >
+                            {atsResult.level} Match
                           </span>
                         </div>
-                        <p className="text-base font-bold text-slate-900 dark:text-white">
-                          {atsResult.jobTitle}
-                        </p>
-                        <p className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                          {atsResult.company}
-                        </p>
-                        <p className="text-xs text-slate-700 dark:text-slate-300 mt-2 leading-relaxed">
-                          {atsResult.tip}
-                        </p>
+
+                        <div>
+                          <div className="flex items-center gap-2 mb-1 justify-center sm:justify-start">
+                            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                              Target Role
+                            </span>
+                          </div>
+                          <h2 className="text-xl sm:text-2xl font-bold text-slate-900 dark:text-white">
+                            {atsResult.jobTitle}
+                          </h2>
+                          <p className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                            {atsResult.company}
+                          </p>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 max-w-xl leading-relaxed">
+                            {atsResult.tip}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex flex-col gap-2 w-full sm:w-auto flex-shrink-0">
+                        <Link
+                          href={`/jobs/${jobSlugParam}`}
+                          className="px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white text-xs font-bold text-center shadow transition"
+                        >
+                          View Job Details & Apply
+                        </Link>
                       </div>
                     </div>
 
-                    {/* Matched & Missing skills */}
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Matched vs Missing Skills Grid */}
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
                       {/* Matched in Resume */}
-                      <div className="rounded-2xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50/60 dark:bg-emerald-950/40 p-4">
-                        <h3 className="text-xs font-bold text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5 mb-3">
-                          <CheckCircle2 className="w-3.5 h-3.5" />
-                          Skills Found in Your Resume ({atsResult.matchedSkills.length})
-                        </h3>
+                      <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-emerald-200 dark:border-emerald-800/70 shadow-sm">
+                        <div className="flex items-center justify-between pb-3 border-b border-emerald-100 dark:border-emerald-950 mb-4">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                            Skills Found in Your Resume ({atsResult.matchedSkills.length})
+                          </h3>
+                        </div>
+
                         {atsResult.matchedSkills.length === 0 ? (
-                          <p className="text-xs text-slate-400">
-                            None of the required skills were detected in your resume text.
+                          <p className="text-xs text-slate-400 py-3">
+                            None of this job's required skills were detected in your resume text.
                           </p>
                         ) : (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-2">
                             {atsResult.matchedSkills.map((skill) => (
                               <span
                                 key={skill}
-                                className="px-2 py-0.5 rounded text-[11px] bg-emerald-100 dark:bg-emerald-900/60 text-emerald-800 dark:text-emerald-300 font-medium"
+                                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-50 dark:bg-emerald-950/80 text-emerald-800 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 flex items-center gap-1.5"
                               >
+                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
                                 {skill}
                               </span>
                             ))}
@@ -535,22 +566,27 @@ function ResumeContent() {
                       </div>
 
                       {/* Missing from Resume */}
-                      <div className="rounded-2xl border border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-950/40 p-4">
-                        <h3 className="text-xs font-bold text-rose-700 dark:text-rose-400 flex items-center gap-1.5 mb-3">
-                          <XCircle className="w-3.5 h-3.5" />
-                          Skills Missing from Your Resume ({atsResult.missingSkills.length})
-                        </h3>
+                      <div className="p-6 bg-white dark:bg-slate-900 rounded-3xl border border-rose-200 dark:border-rose-800/70 shadow-sm">
+                        <div className="flex items-center justify-between pb-3 border-b border-rose-100 dark:border-rose-950 mb-4">
+                          <h3 className="text-xs font-bold uppercase tracking-wider text-rose-700 dark:text-rose-400 flex items-center gap-2">
+                            <XCircle className="w-4 h-4 text-rose-600" />
+                            Skills Missing from Your Resume ({atsResult.missingSkills.length})
+                          </h3>
+                        </div>
+
                         {atsResult.missingSkills.length === 0 ? (
-                          <p className="text-xs text-emerald-600 font-medium">
+                          <div className="py-3 text-xs text-emerald-600 font-semibold flex items-center gap-1.5">
+                            <CheckCircle2 className="w-4 h-4" />
                             Your resume covers all required skills for this role! 🎉
-                          </p>
+                          </div>
                         ) : (
-                          <div className="flex flex-wrap gap-1.5">
+                          <div className="flex flex-wrap gap-2">
                             {atsResult.missingSkills.map((skill) => (
                               <span
                                 key={skill}
-                                className="px-2 py-0.5 rounded text-[11px] bg-rose-100 dark:bg-rose-900/60 text-rose-800 dark:text-rose-300 font-medium"
+                                className="px-2.5 py-1 rounded-lg text-xs font-medium bg-rose-50 dark:bg-rose-950/80 text-rose-800 dark:text-rose-300 border border-rose-200 dark:border-rose-800 flex items-center gap-1.5"
                               >
+                                <XCircle className="w-3 h-3 text-rose-500" />
                                 {skill}
                               </span>
                             ))}
@@ -563,14 +599,122 @@ function ResumeContent() {
               </div>
             )}
           </div>
-        </div>
+        ) : (
+          /* ── CASE 2: GENERAL ATS BENCHMARK DASHBOARD (Navbar Direct Visit) ── */
+          <div className="space-y-6">
+            {/* Header info card */}
+            <div className="p-6 bg-gradient-to-r from-brand-600 via-indigo-600 to-teal-600 rounded-3xl text-white shadow-md">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                  <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-white/20 uppercase tracking-wider">
+                    General Role Benchmark
+                  </span>
+                  <h2 className="text-xl sm:text-2xl font-black mt-2">
+                    Industry Role ATS Benchmark
+                  </h2>
+                  <p className="text-xs text-white/80 mt-1 max-w-xl leading-relaxed">
+                    Compare your active resume against industry-standard requirements for core tech roles. Select a role below to see how competitive your resume is.
+                  </p>
+                </div>
 
-        {/* ── MY RESUMES LIST ──────────────────────────────────────────── */}
-        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm">
+                <Link
+                  href="/jobs"
+                  className="px-4 py-2.5 rounded-xl bg-white text-brand-700 hover:bg-slate-100 text-xs font-bold shadow transition self-start md:self-auto flex-shrink-0 flex items-center gap-1.5"
+                >
+                  <span>Match Against Live Jobs</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
+
+            {/* Role benchmark selector tabs */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2.5">
+              {BENCHMARK_ROLES.map((r) => {
+                const isSelected = selectedBenchmarkId === r.id;
+                return (
+                  <button
+                    key={r.id}
+                    onClick={() => setSelectedBenchmarkId(r.id)}
+                    className={`p-3.5 rounded-2xl border text-left transition ${
+                      isSelected
+                        ? 'bg-brand-50 border-brand-500 text-brand-700 dark:bg-brand-950/70 dark:border-brand-500 dark:text-brand-300 ring-2 ring-brand-500/20'
+                        : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+                    }`}
+                  >
+                    <span className="text-[10px] uppercase font-bold text-slate-400 block truncate">
+                      {r.category}
+                    </span>
+                    <p className="text-xs font-bold mt-1 line-clamp-1">{r.title}</p>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Selected benchmark inspection card */}
+            <div className="p-6 sm:p-8 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100 dark:border-slate-800">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Target className="w-4 h-4 text-brand-600" />
+                    <span className="text-xs font-bold text-brand-600 uppercase tracking-wider">
+                      {selectedBenchmark.category}
+                    </span>
+                  </div>
+                  <h3 className="text-lg sm:text-xl font-bold text-slate-900 dark:text-white mt-0.5">
+                    {selectedBenchmark.title}
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 max-w-xl">
+                    {selectedBenchmark.description}
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold px-3 py-1 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">
+                    {selectedBenchmark.skills.length} Standard Requirements
+                  </span>
+                </div>
+              </div>
+
+              {/* Benchmark skill checklist */}
+              <div>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
+                  Essential Industry Skills for this Role:
+                </h4>
+                <div className="flex flex-wrap gap-2">
+                  {selectedBenchmark.skills.map((skill) => (
+                    <span
+                      key={skill}
+                      className="px-3 py-1.5 rounded-xl text-xs font-medium bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 flex items-center gap-1.5"
+                    >
+                      <Zap className="w-3 h-3 text-amber-500" />
+                      {skill}
+                    </span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="p-4 rounded-2xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                <span className="text-slate-600 dark:text-slate-300">
+                  Ready to test your resume against real, live openings with hiring companies?
+                </span>
+                <Link
+                  href="/jobs"
+                  className="px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold transition self-start sm:self-auto flex items-center gap-1.5"
+                >
+                  <span>Explore Open Positions</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── UPLOADED RESUMES LIST (Compact Vault Table) ─────────────── */}
+        <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm overflow-hidden">
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 dark:border-slate-800">
             <h2 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <FileText className="w-4 h-4 text-brand-600" />
-              Uploaded Resume Files
+              Uploaded Resume Vault
             </h2>
             <button
               onClick={loadActiveResumeAndFiles}
@@ -584,61 +728,70 @@ function ResumeContent() {
           {loadingFiles ? (
             <div className="p-8 text-center text-slate-400 flex items-center justify-center gap-2">
               <Loader2 className="w-4 h-4 animate-spin" />
-              <span className="text-sm">Loading files...</span>
+              <span className="text-xs">Loading vault files...</span>
             </div>
           ) : files.length === 0 ? (
-            <div className="p-8 text-center text-slate-400">
-              <FileText className="w-8 h-8 mx-auto mb-2 opacity-40" />
-              <p className="text-sm">No resumes uploaded yet. Upload your resume above.</p>
+            <div className="p-8 text-center text-slate-400 text-xs">
+              No resumes uploaded yet. Click <strong>Upload Resume</strong> above to start.
             </div>
           ) : (
             <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {files.map((f) => (
-                <li
-                  key={f.fileKey}
-                  className="flex items-center justify-between gap-4 px-6 py-4 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-xl bg-brand-50 dark:bg-brand-950/60 flex items-center justify-center text-brand-600 flex-shrink-0">
-                      <FileText className="w-4 h-4" />
+              {files.map((f) => {
+                const isActive = activeResume?.fileKey === f.fileKey;
+                return (
+                  <li
+                    key={f.fileKey}
+                    className="flex items-center justify-between gap-4 px-6 py-3.5 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition text-xs"
+                  >
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-8 h-8 rounded-lg bg-brand-50 dark:bg-brand-950/60 flex items-center justify-center text-brand-600 flex-shrink-0">
+                        <FileText className="w-4 h-4" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <p className="font-semibold text-slate-900 dark:text-white truncate">
+                            {f.name}
+                          </p>
+                          {isActive && (
+                            <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-[11px] text-slate-400">
+                          {formatSize(f.size)} ·{' '}
+                          {f.createdAt ? new Date(f.createdAt).toLocaleDateString() : ''}
+                        </p>
+                      </div>
                     </div>
-                    <div className="min-w-0">
-                      <p className="text-sm font-semibold text-slate-900 dark:text-white truncate">
-                        {f.name}
-                      </p>
-                      <p className="text-[11px] text-slate-400">
-                        {formatSize(f.size)} ·{' '}
-                        {f.createdAt ? new Date(f.createdAt).toLocaleDateString() : ''}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    {f.signedUrl && (
-                      <a
-                        href={f.signedUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/60 transition"
-                        title="Download"
-                      >
-                        <Download className="w-4 h-4" />
-                      </a>
-                    )}
-                    <button
-                      onClick={() => handleDelete(f.fileKey)}
-                      disabled={deletingKey === f.fileKey}
-                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 transition"
-                      title="Delete"
-                    >
-                      {deletingKey === f.fileKey ? (
-                        <Loader2 className="w-4 h-4 animate-spin" />
-                      ) : (
-                        <Trash2 className="w-4 h-4" />
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      {f.signedUrl && (
+                        <a
+                          href={f.signedUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-brand-600 hover:bg-brand-50 dark:hover:bg-brand-950/60 transition"
+                          title="Download"
+                        >
+                          <Download className="w-4 h-4" />
+                        </a>
                       )}
-                    </button>
-                  </div>
-                </li>
-              ))}
+                      <button
+                        onClick={() => handleDelete(f.fileKey)}
+                        disabled={deletingKey === f.fileKey}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/60 transition"
+                        title="Delete"
+                      >
+                        {deletingKey === f.fileKey ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="w-4 h-4" />
+                        )}
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
