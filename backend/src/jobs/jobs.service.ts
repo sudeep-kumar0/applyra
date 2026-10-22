@@ -442,6 +442,16 @@ export class JobsService implements OnModuleInit {
     return { success: true, message: 'Job listing deleted successfully' };
   }
 
+  async bulkDeleteJobs(ids: string[]): Promise<{ success: boolean; count: number; message: string }> {
+    const validIds = ids.filter((id) => id && id.match(/^[0-9a-fA-F]{24}$/));
+    const result = await this.jobModel.deleteMany({ _id: { $in: validIds } });
+    return {
+      success: true,
+      count: result.deletedCount || 0,
+      message: `Successfully deleted ${result.deletedCount || 0} jobs`,
+    };
+  }
+
   async getAllAdminJobs(params: {
     search?: string;
     source?: string;
