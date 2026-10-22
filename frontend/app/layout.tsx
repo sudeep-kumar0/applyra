@@ -30,13 +30,6 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <head>
         <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              try {
-                const theme = localStorage.getItem('applyra-theme') || 'system';
-                const isDark = theme === 'dark' || (theme === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-                if (isDark) document.documentElement.classList.add('dark');
-                else document.documentElement.classList.remove('dark');
           id="theme-initializer"
           dangerouslySetInnerHTML={{
             __html: `
