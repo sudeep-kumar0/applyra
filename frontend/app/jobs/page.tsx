@@ -21,6 +21,7 @@ import {
   AlertCircle,
   ChevronDown,
   ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
 
 interface JobListing {
@@ -206,6 +207,15 @@ function JobsContent() {
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || 'All');
   const [sort, setSort] = useState(searchParams.get('sort') || 'recent');
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(() => {
+    const p = searchParams.get('page');
+    return p ? Math.max(1, parseInt(p, 10)) : 1;
+  });
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalJobs, setTotalJobs] = useState<number>(0);
+  const pageSize = 12;
+
   const [jobs, setJobs] = useState<JobListing[]>(FALLBACK_SEED_JOBS);
   const [loading, setLoading] = useState(false);
   const [savedJobSlugs, setSavedJobSlugs] = useState<string[]>([]);
@@ -243,17 +253,37 @@ function JobsContent() {
     if (jobType !== 'All') params.set('jobType', jobType);
     if (sourceFilter !== 'All') params.set('source', sourceFilter);
     if (sort !== 'recent') params.set('sort', sort);
+    if (currentPage > 1) params.set('page', String(currentPage));
 
     const queryString = params.toString();
     const newPath = queryString ? `/jobs?${queryString}` : '/jobs';
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', newPath);
     }
-  }, [search, location, category, workMode, jobType, sourceFilter, sort]);
+  }, [search, location, category, workMode, jobType, sourceFilter, sort, currentPage]);
 
   useEffect(() => {
     syncParamsToUrl();
   }, [syncParamsToUrl]);
+
+  // When any filter/search changes (but NOT currentPage), reset to page 1
+  const prevFiltersRef = React.useRef({ search, location, category, workMode, jobType, sourceFilter, sort });
+  useEffect(() => {
+    const prev = prevFiltersRef.current;
+    const filtersChanged =
+      prev.search !== search ||
+      prev.location !== location ||
+      prev.category !== category ||
+      prev.workMode !== workMode ||
+      prev.jobType !== jobType ||
+      prev.sourceFilter !== sourceFilter ||
+      prev.sort !== sort;
+
+    if (filtersChanged) {
+      prevFiltersRef.current = { search, location, category, workMode, jobType, sourceFilter, sort };
+      setCurrentPage(1);
+    }
+  }, [search, location, category, workMode, jobType, sourceFilter, sort]);
 
   // Fetch jobs from backend REST API with fallback to local seed data
   useEffect(() => {
@@ -270,14 +300,17 @@ function JobsContent() {
         if (jobType !== 'All') query.append('jobType', jobType);
         if (sourceFilter !== 'All') query.append('source', sourceFilter);
         if (sort) query.append('sort', sort);
-        query.append('limit', '50');
+        query.append('page', String(currentPage));
+        query.append('limit', String(pageSize));
 
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
         const res = await fetch(`${apiUrl}/jobs?${query.toString()}`);
         if (res.ok) {
           const data = await res.json();
-          if (!isCancelled && data && Array.isArray(data.jobs) && data.jobs.length > 0) {
+          if (!isCancelled && data && Array.isArray(data.jobs)) {
             setJobs(data.jobs);
+            setTotalJobs(data.total !== undefined ? data.total : data.jobs.length);
+            setTotalPages(data.totalPages || Math.ceil((data.total || data.jobs.length) / pageSize) || 1);
             setLoading(false);
             return;
           }
@@ -320,7 +353,12 @@ function JobsContent() {
           (j) => j.source.toLowerCase() === sourceFilter.toLowerCase(),
         );
       }
-      setJobs(filtered);
+      const totalFiltered = filtered.length;
+      const startIdx = (currentPage - 1) * pageSize;
+      const paginatedFallback = filtered.slice(startIdx, startIdx + pageSize);
+      setJobs(paginatedFallback);
+      setTotalJobs(totalFiltered);
+      setTotalPages(Math.ceil(totalFiltered / pageSize) || 1);
       setLoading(false);
     }
 
@@ -329,7 +367,7 @@ function JobsContent() {
     return () => {
       isCancelled = true;
     };
-  }, [search, location, category, workMode, jobType, sourceFilter, sort]);
+  }, [search, location, category, workMode, jobType, sourceFilter, sort, currentPage]);
 
   const handleSaveClick = async (job: JobListing) => {
     if (!user) {
@@ -516,6 +554,7 @@ function JobsContent() {
               setWorkMode('All');
               setJobType('All');
               setSourceFilter('All');
+              setCurrentPage(1);
             }}
             className="text-xs text-brand-600 dark:text-brand-400 font-semibold hover:underline"
           >
@@ -541,6 +580,7 @@ function JobsContent() {
                   setSourceFilter('All');
                   setSearch('');
                   setLocation('');
+                  setCurrentPage(1);
                 }}
                 className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
               >
@@ -642,7 +682,14 @@ function JobsContent() {
         <div className="lg:col-span-3 space-y-4">
           <div className="flex items-center justify-between text-xs text-slate-500 pb-2">
             <span>
-              Showing {jobs.length} open position{jobs.length !== 1 ? 's' : ''}
+              {totalJobs > 0
+                ? (
+                    totalPages > 1
+                      ? <>Showing <strong>{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalJobs)}</strong> of <strong>{totalJobs}</strong> job{totalJobs !== 1 ? 's' : ''}</>
+                      : <><strong>{totalJobs}</strong> job{totalJobs !== 1 ? 's' : ''} found</>
+                  )
+                : 'No jobs found'
+              }
             </span>
             <div className="flex items-center gap-2">
               <span>Sort by:</span>
@@ -672,6 +719,7 @@ function JobsContent() {
                   setSourceFilter('All');
                   setSearch('');
                   setLocation('');
+                  setCurrentPage(1);
                 }}
                 className="mt-4 px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 transition"
               >
@@ -811,6 +859,89 @@ function JobsContent() {
                 </div>
               );
             })
+          )}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Showing <span className="font-semibold text-slate-800 dark:text-slate-200">{(currentPage - 1) * pageSize + 1}</span> to{' '}
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{Math.min(currentPage * pageSize, totalJobs)}</span> of{' '}
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{totalJobs}</span> jobs
+              </p>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.max(prev - 1, 1));
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Previous</span>
+                </button>
+
+                {/* Page Numbers */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((pageNum) => {
+                      return (
+                        pageNum === 1 ||
+                        pageNum === totalPages ||
+                        Math.abs(pageNum - currentPage) <= 1
+                      );
+                    })
+                    .reduce<(number | string)[]>((acc, pageNum, idx, arr) => {
+                      if (idx > 0 && pageNum - arr[idx - 1] > 1) {
+                        acc.push('...');
+                      }
+                      acc.push(pageNum);
+                      return acc;
+                    }, [])
+                    .map((item, idx) => {
+                      if (item === '...') {
+                        return (
+                          <span key={`dots-${idx}`} className="px-2 py-1 text-xs text-slate-400">
+                            ...
+                          </span>
+                        );
+                      }
+                      const pageNum = item as number;
+                      const isActive = pageNum === currentPage;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => {
+                            setCurrentPage(pageNum);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className={`w-8 h-8 rounded-lg text-xs font-semibold transition ${
+                            isActive
+                              ? 'bg-brand-600 text-white shadow-sm'
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                </div>
+
+                <button
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>

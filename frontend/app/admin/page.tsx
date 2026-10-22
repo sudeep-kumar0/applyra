@@ -31,6 +31,8 @@ import {
   RefreshCw,
   Download,
   Sparkles,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 const CATEGORIES = [
@@ -98,6 +100,9 @@ export default function AdminDashboardPage() {
   const [jobsSourceFilter, setJobsSourceFilter] = useState('All');
   const [jobsStatusFilter, setJobsStatusFilter] = useState('All');
   const [loadingJobs, setLoadingJobs] = useState(false);
+  const [selectedJobIds, setSelectedJobIds] = useState<string[]>([]);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const adminPageSize = 15;
 
   // Edit Job Modal state
   const [editingJob, setEditingJob] = useState<any | null>(null);
@@ -317,6 +322,55 @@ export default function AdminDashboardPage() {
       }
     } catch (err: any) {
       showToast(err.message || 'Failed to update job status', 'error');
+    }
+  };
+
+  // Select all jobs on current page
+  const handleSelectAllCurrentPage = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const pageIds = jobsList.map((j) => j._id).filter(Boolean);
+      setSelectedJobIds((prev) => Array.from(new Set([...prev, ...pageIds])));
+    } else {
+      const pageIds = new Set(jobsList.map((j) => j._id));
+      setSelectedJobIds((prev) => prev.filter((id) => !pageIds.has(id)));
+    }
+  };
+
+  const handleSelectJob = (id: string) => {
+    setSelectedJobIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  // Bulk Delete Selected Jobs
+  const handleBulkDelete = async () => {
+    if (selectedJobIds.length === 0) return;
+    if (
+      !window.confirm(
+        `Are you sure you want to permanently delete the ${selectedJobIds.length} selected job(s)? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+
+    setBulkDeleting(true);
+    try {
+      const res = await fetchApi('/admin/jobs/bulk-delete', {
+        method: 'POST',
+        body: JSON.stringify({ ids: selectedJobIds }),
+      });
+      if (res && res.success) {
+        showToast(res.message || `Successfully deleted ${selectedJobIds.length} jobs.`);
+        setSelectedJobIds([]);
+        loadJobs(jobsPage);
+        loadStats();
+      } else {
+        showToast('Failed to delete selected jobs', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete selected jobs', 'error');
+    } finally {
+      setBulkDeleting(false);
     }
   };
 
@@ -892,6 +946,38 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
+            {/* Bulk Action Toolbar */}
+            {selectedJobIds.length > 0 && (
+              <div className="p-3.5 px-4 bg-amber-500/10 border border-amber-500/30 rounded-2xl flex flex-wrap items-center justify-between gap-3 animate-in fade-in">
+                <div className="flex items-center gap-2 text-xs font-semibold text-amber-300">
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse" />
+                  <span>
+                    {selectedJobIds.length} job{selectedJobIds.length > 1 ? 's' : ''} selected
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setSelectedJobIds([])}
+                    className="px-3 py-1.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-300 text-xs font-medium transition"
+                  >
+                    Deselect All
+                  </button>
+                  <button
+                    onClick={handleBulkDelete}
+                    disabled={bulkDeleting}
+                    className="px-3.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+                  >
+                    {bulkDeleting ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="w-3.5 h-3.5" />
+                    )}
+                    <span>Delete Selected ({selectedJobIds.length})</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* Jobs Table */}
             <div className="bg-slate-900 rounded-3xl border border-slate-800 overflow-hidden shadow-sm">
               {loadingJobs ? (
@@ -908,6 +994,18 @@ export default function AdminDashboardPage() {
                   <table className="w-full text-left text-xs">
                     <thead>
                       <tr className="border-b border-slate-800 text-slate-400 uppercase tracking-wider bg-slate-900/60">
+                        <th className="py-3.5 px-4 w-10">
+                          <input
+                            type="checkbox"
+                            checked={
+                              jobsList.length > 0 &&
+                              jobsList.every((j) => selectedJobIds.includes(j._id))
+                            }
+                            onChange={handleSelectAllCurrentPage}
+                            className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900 cursor-pointer"
+                            title="Select all on this page"
+                          />
+                        </th>
                         <th className="py-3.5 px-4">Title & Slug</th>
                         <th className="py-3.5 px-4">Company & Location</th>
                         <th className="py-3.5 px-4">Category</th>
@@ -918,8 +1016,23 @@ export default function AdminDashboardPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-slate-800/80">
-                      {jobsList.map((job) => (
-                        <tr key={job._id || job.slug} className="hover:bg-slate-800/40 transition">
+                      {jobsList.map((job) => {
+                        const isSelected = selectedJobIds.includes(job._id);
+                        return (
+                        <tr
+                          key={job._id || job.slug}
+                          className={`hover:bg-slate-800/40 transition ${
+                            isSelected ? 'bg-amber-500/10' : ''
+                          }`}
+                        >
+                          <td className="py-3.5 px-4">
+                            <input
+                              type="checkbox"
+                              checked={isSelected}
+                              onChange={() => handleSelectJob(job._id)}
+                              className="w-4 h-4 rounded border-slate-700 bg-slate-800 text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900 cursor-pointer"
+                            />
+                          </td>
                           <td className="py-3.5 px-4 font-semibold text-white">
                             <Link
                               href={`/jobs/${job.slug}`}
@@ -981,9 +1094,85 @@ export default function AdminDashboardPage() {
                             </div>
                           </td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </table>
+                </div>
+              )}
+
+              {/* Admin Table Pagination */}
+              {Math.ceil(jobsTotal / adminPageSize) > 1 && (
+                <div className="p-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+                  <span className="text-slate-400">
+                    Showing <span className="text-white font-semibold">{(jobsPage - 1) * adminPageSize + 1}</span> to{' '}
+                    <span className="text-white font-semibold">{Math.min(jobsPage * adminPageSize, jobsTotal)}</span> of{' '}
+                    <span className="text-white font-semibold">{jobsTotal}</span> jobs
+                  </span>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      onClick={() => loadJobs(Math.max(jobsPage - 1, 1))}
+                      disabled={jobsPage === 1 || loadingJobs}
+                      className="px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                    >
+                      <ChevronLeft className="w-3.5 h-3.5" />
+                      <span>Previous</span>
+                    </button>
+
+                    <div className="flex items-center gap-1">
+                      {Array.from({ length: Math.ceil(jobsTotal / adminPageSize) }, (_, i) => i + 1)
+                        .filter((pageNum) => {
+                          const totalP = Math.ceil(jobsTotal / adminPageSize);
+                          return (
+                            pageNum === 1 ||
+                            pageNum === totalP ||
+                            Math.abs(pageNum - jobsPage) <= 1
+                          );
+                        })
+                        .reduce<(number | string)[]>((acc, pageNum, idx, arr) => {
+                          if (idx > 0 && pageNum - arr[idx - 1] > 1) {
+                            acc.push('...');
+                          }
+                          acc.push(pageNum);
+                          return acc;
+                        }, [])
+                        .map((item, idx) => {
+                          if (item === '...') {
+                            return (
+                              <span key={`admin-dots-${idx}`} className="px-2 py-1 text-slate-500">
+                                ...
+                              </span>
+                            );
+                          }
+                          const pageNum = item as number;
+                          const isActive = pageNum === jobsPage;
+                          return (
+                            <button
+                              key={pageNum}
+                              onClick={() => loadJobs(pageNum)}
+                              disabled={loadingJobs}
+                              className={`w-7 h-7 rounded-lg text-xs font-semibold transition ${
+                                isActive
+                                ? 'bg-amber-500 text-slate-950 font-bold'
+                                : 'text-slate-300 hover:bg-slate-800'
+                              }`}
+                            >
+                              {pageNum}
+                            </button>
+                          );
+                        })}
+                    </div>
+
+                    <button
+                      onClick={() => loadJobs(Math.min(jobsPage + 1, Math.ceil(jobsTotal / adminPageSize)))}
+                      disabled={jobsPage === Math.ceil(jobsTotal / adminPageSize) || loadingJobs}
+                      className="px-3 py-1.5 rounded-lg border border-slate-700 hover:bg-slate-800 text-slate-300 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                    >
+                      <span>Next</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
