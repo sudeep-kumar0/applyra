@@ -64,3 +64,69 @@ export interface BatchScrapeResult {
   results: ScrapeResult[];
   errors: Array<{ company: string; boardToken: string; error: string }>;
 }
+
+// ==========================================
+// Workday Scraper Types
+// ==========================================
+
+export interface WorkdaySiteConfig {
+  tenant: string;
+  host: string; // e.g. 'wd5', 'wd1', 'wd12'
+  site: string; // e.g. 'external_experienced'
+}
+
+export interface WorkdayJobListItem {
+  title: string;
+  externalPath: string;
+  locationsText?: string;
+  postedOn?: string;
+  bulletFields?: string[];
+  subtitles?: string[];
+}
+
+export interface WorkdayJobsResponse {
+  total: number;
+  jobPostings?: WorkdayJobListItem[];
+}
+
+export interface WorkdayJobDetailInfo {
+  id?: string;
+  title: string;
+  jobDescription?: string;
+  location?: string;
+  secondaryLocations?: string[];
+  additionalLocations?: string[];
+  timeType?: string;
+  jobReqId?: string;
+  postedOn?: string;
+  startDate?: string;
+  externalUrl?: string;
+  country?: { descriptor?: string; id?: string };
+  jobRequisitionLocation?: { descriptor?: string };
+}
+
+export interface WorkdayJobDetailResponse {
+  jobPostingInfo?: WorkdayJobDetailInfo;
+  hiringOrganization?: string;
+}
+
+export interface WorkdayCompanyPreset {
+  name: string;
+  tenant: string;
+  host: string;
+  site: string;
+  url: string;
+  category: string;
+  logo: string;
+  hasIndiaPresence: boolean;
+}
+
+export interface WorkdayScrapeImportOptions {
+  siteUrlOrToken: string; // URL e.g. https://adobe.wd5.myworkdayjobs.com/external_experienced or preset tenant
+  companyName?: string;
+  companyLogo?: string;
+  limit?: number;
+  categoryOverride?: string;
+  syncDeactivations?: boolean;
+  indiaOnly?: boolean;
+}

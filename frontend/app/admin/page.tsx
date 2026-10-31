@@ -104,11 +104,27 @@ const GREENHOUSE_PRESETS = [
   { name: 'Canonical', token: 'canonical', category: 'DevOps/Cloud', isIndia: true },
 ];
 
+const WORKDAY_PRESETS = [
+  { name: 'Adobe', token: 'adobe', url: 'https://adobe.wd5.myworkdayjobs.com/external_experienced', category: 'Software', isIndia: true },
+  { name: 'NVIDIA', token: 'nvidia', url: 'https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite', category: 'AI/ML', isIndia: true },
+  { name: 'Salesforce', token: 'salesforce', url: 'https://salesforce.wd12.myworkdayjobs.com/External_Career_Site', category: 'Software', isIndia: true },
+  { name: 'Target', token: 'target', url: 'https://target.wd5.myworkdayjobs.com/targetcareers', category: 'Software', isIndia: true },
+  { name: 'Mastercard', token: 'mastercard', url: 'https://mastercard.wd1.myworkdayjobs.com/CorporateCareers', category: 'Finance', isIndia: true },
+  { name: 'Intel', token: 'intel', url: 'https://intel.wd1.myworkdayjobs.com/External', category: 'Software', isIndia: true },
+  { name: 'HP', token: 'hp', url: 'https://hp.wd5.myworkdayjobs.com/ExternalCareerSite', category: 'Software', isIndia: true },
+  { name: 'Philips', token: 'philips', url: 'https://philips.wd3.myworkdayjobs.com/jobs-and-careers', category: 'Software', isIndia: true },
+  { name: 'Motorola Solutions', token: 'motorolasolutions', url: 'https://motorolasolutions.wd5.myworkdayjobs.com/Careers', category: 'DevOps/Cloud', isIndia: true },
+  { name: 'CrowdStrike', token: 'crowdstrike', url: 'https://crowdstrike.wd5.myworkdayjobs.com/crowdstrikecareers', category: 'Cybersecurity', isIndia: true },
+  { name: 'PayPal', token: 'paypal', url: 'https://paypal.wd1.myworkdayjobs.com/jobs', category: 'Finance', isIndia: true },
+  { name: 'Broadcom', token: 'broadcom', url: 'https://broadcom.wd1.myworkdayjobs.com/External_Career', category: 'DevOps/Cloud', isIndia: true },
+  { name: 'Autodesk', token: 'autodesk', url: 'https://autodesk.wd1.myworkdayjobs.com/Ext', category: 'Software', isIndia: true },
+];
+
 export default function AdminDashboardPage() {
   const router = useRouter();
   const { user, mongoUser, isAdmin, isLoading } = useAuth();
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'add_job' | 'manage_jobs' | 'sources' | 'reports' | 'import_greenhouse'>('dashboard');
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'add_job' | 'manage_jobs' | 'sources' | 'reports' | 'import_greenhouse' | 'import_workday'>('dashboard');
 
   // Stats state
   const [stats, setStats] = useState<any>(null);
@@ -237,6 +253,118 @@ export default function AdminDashboardPage() {
       showToast(err.message || 'Failed to scrape and import jobs', 'error');
     } finally {
       setScraperLoading(false);
+    }
+  };
+
+
+  // Workday Scraper State
+  const [workdayUrl, setWorkdayUrl] = useState('adobe');
+  const [workdayCompany, setWorkdayCompany] = useState('Adobe');
+  const [workdayLimit, setWorkdayLimit] = useState<number>(25);
+  const [workdayCategory, setWorkdayCategory] = useState<string>('Auto-Detect');
+  const [workdaySyncDeactivations, setWorkdaySyncDeactivations] = useState(true);
+  const [workdayLoading, setWorkdayLoading] = useState(false);
+  const [workdayPreviewing, setWorkdayPreviewing] = useState(false);
+  const [workdayPreview, setWorkdayPreview] = useState<any | null>(null);
+  const [workdayResult, setWorkdayResult] = useState<any | null>(null);
+  const [workdayIndiaOnly, setWorkdayIndiaOnly] = useState<boolean>(true);
+  const [workdayBatchScraping, setWorkdayBatchScraping] = useState<boolean>(false);
+  const [workdayBatchResult, setWorkdayBatchResult] = useState<any | null>(null);
+
+  const handlePreviewWorkday = async () => {
+    if (!workdayUrl.trim()) {
+      showToast('Please enter a Workday career URL or preset name', 'error');
+      return;
+    }
+    setWorkdayPreviewing(true);
+    setWorkdayPreview(null);
+    try {
+      const res = await fetchApi('/admin/scrape/workday/preview', {
+        method: 'POST',
+        body: JSON.stringify({
+          siteUrlOrToken: workdayUrl.trim(),
+          limit: 3,
+          indiaOnly: workdayIndiaOnly,
+        }),
+      });
+      if (res && res.success) {
+        setWorkdayPreview(res);
+        if (res.company && !workdayCompany) setWorkdayCompany(res.company);
+        showToast(`Fetched ${res.totalFound} jobs from ${res.company}. Showing 3 previews.`);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to preview Workday jobs', 'error');
+    } finally {
+      setWorkdayPreviewing(false);
+    }
+  };
+
+  const handleImportWorkday = async () => {
+    if (!workdayUrl.trim()) {
+      showToast('Please enter a Workday career URL or preset name', 'error');
+      return;
+    }
+    setWorkdayLoading(true);
+    setWorkdayResult(null);
+    try {
+      const res = await fetchApi('/admin/scrape/workday/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          siteUrlOrToken: workdayUrl.trim(),
+          companyName: workdayCompany.trim() || undefined,
+          limit: workdayLimit > 0 ? workdayLimit : undefined,
+          categoryOverride: workdayCategory !== 'Auto-Detect' ? workdayCategory : undefined,
+          syncDeactivations: workdaySyncDeactivations,
+          indiaOnly: workdayIndiaOnly,
+        }),
+      });
+      if (res && res.success) {
+        setWorkdayResult(res.result);
+        showToast(res.message || 'Workday scraping and import completed!');
+        loadStats();
+        loadJobs(1);
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to scrape and import Workday jobs', 'error');
+    } finally {
+      setWorkdayLoading(false);
+    }
+  };
+
+  const handleBatchScrapeAllWorkday = async () => {
+    if (
+      !confirm(
+        `Are you sure you want to scrape jobs from all ${WORKDAY_PRESETS.length} registered Workday companies${
+          workdayIndiaOnly ? ' (India & Remote Only)' : ''
+        }? This parses all enterprise Workday boards and saves matching jobs live into MongoDB.`,
+      )
+    ) {
+      return;
+    }
+    setWorkdayBatchScraping(true);
+    setWorkdayBatchResult(null);
+    try {
+      const res = await fetchApi('/admin/scrape/workday/scrape-all', {
+        method: 'POST',
+        body: JSON.stringify({
+          indiaOnly: workdayIndiaOnly,
+          syncDeactivations: workdaySyncDeactivations,
+        }),
+      });
+      if (res && res.success) {
+        setWorkdayBatchResult(res.result);
+        showToast(
+          `Workday batch scrape complete: +${res.result.totalImported} imported, ${res.result.totalUpdated} updated!`,
+        );
+        loadStats();
+        loadJobs(1);
+      } else {
+        showToast(res?.message || 'Workday batch scrape finished', 'error');
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to complete Workday batch scrape', 'error');
+    } finally {
+      setWorkdayBatchScraping(false);
     }
   };
 
@@ -591,6 +719,7 @@ export default function AdminDashboardPage() {
             { id: 'add_job', label: 'Add Job', icon: <PlusCircle className="w-4 h-4" /> },
             { id: 'manage_jobs', label: `Manage Jobs (${jobsTotal})`, icon: <Briefcase className="w-4 h-4" /> },
             { id: 'import_greenhouse', label: 'Import Greenhouse', icon: <Download className="w-4 h-4" /> },
+            { id: 'import_workday', label: 'Import Workday', icon: <Building2 className="w-4 h-4" /> },
             { id: 'sources', label: 'Job Sources', icon: <Globe className="w-4 h-4" /> },
             { id: 'reports', label: 'Reports', icon: <FileText className="w-4 h-4" /> },
           ].map((tab) => (
@@ -1745,6 +1874,424 @@ export default function AdminDashboardPage() {
             )}
           </div>
         )}
+
+
+        {/* TAB 7: IMPORT FROM WORKDAY */}
+        {activeTab === 'import_workday' && (
+          <div className="space-y-8">
+            {/* DAILY AUTOMATED CRON & BATCH SCRAPER CARD */}
+            <div className="p-6 md:p-8 rounded-3xl bg-gradient-to-br from-indigo-500/15 via-slate-900 to-slate-900 border border-indigo-500/30 flex flex-col lg:flex-row lg:items-center justify-between gap-6 shadow-xl">
+              <div className="space-y-3">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className="p-2.5 rounded-2xl bg-indigo-500/20 text-indigo-400 border border-indigo-500/30 flex items-center justify-center">
+                    <Clock className="w-5 h-5" />
+                  </span>
+                  <div>
+                    <h3 className="text-base font-bold text-white flex items-center gap-2">
+                      <span>Daily Automated Workday Synchronization</span>
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 uppercase tracking-wider">
+                        Active Cron (03:00 AM)
+                      </span>
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Scheduled every day at <strong>03:00 AM server time (0 3 * * *)</strong>
+                    </p>
+                  </div>
+                </div>
+
+                <p className="text-xs text-slate-300 max-w-2xl leading-relaxed">
+                  Applyra automatically scrapes <strong>all {WORKDAY_PRESETS.length} registered Workday companies</strong> with <strong>India & Remote Only</strong> filtering enabled. Enterprise job boards (Adobe, Nvidia, Salesforce, Target, Intel, Mastercard, etc.) are synchronized with rich job descriptions and skills.
+                </p>
+
+                <div className="flex flex-wrap items-center gap-4 text-xs text-slate-400 pt-1">
+                  <span className="flex items-center gap-1.5 text-emerald-400">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>{WORKDAY_PRESETS.length} Verified Enterprise Tech Boards</span>
+                  </span>
+                  <span className="flex items-center gap-1.5 text-slate-400">
+                    <Globe className="w-4 h-4 text-indigo-400" />
+                    <span>1,500+ Active Roles in India</span>
+                  </span>
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto shrink-0">
+                <button
+                  type="button"
+                  onClick={handleBatchScrapeAllWorkday}
+                  disabled={workdayBatchScraping || workdayLoading}
+                  className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition flex items-center justify-center gap-2 shadow-lg shadow-indigo-600/30 disabled:opacity-50"
+                >
+                  {workdayBatchScraping ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Syncing All Workday Boards...</span>
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="w-4 h-4 text-white" />
+                      <span>Sync All {WORKDAY_PRESETS.length} Workday Companies Now</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* BATCH RESULT BANNER */}
+            {workdayBatchResult && (
+              <div className="p-6 rounded-3xl bg-slate-900 border border-indigo-500/40 text-white space-y-4 animate-in fade-in duration-200 shadow-xl">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 text-indigo-400 flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h4 className="text-sm font-bold text-white">
+                        Workday Batch Scraping Synchronization Finished
+                      </h4>
+                      <p className="text-xs text-slate-400">
+                        Processed {workdayBatchResult.successfulCompanies} of {workdayBatchResult.totalCompanies} Workday boards
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Total on Boards</span>
+                    <span className="text-lg font-black text-white font-mono">{workdayBatchResult.totalFound}</span>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Newly Imported</span>
+                    <span className="text-lg font-black text-emerald-400 font-mono">+{workdayBatchResult.totalImported}</span>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Updated Existing</span>
+                    <span className="text-lg font-black text-sky-400 font-mono">{workdayBatchResult.totalUpdated}</span>
+                  </div>
+                  <div className="p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Foreign / Filtered</span>
+                    <span className="text-lg font-black text-slate-400 font-mono">{workdayBatchResult.totalSkipped}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MANUAL SINGLE-COMPANY SCRAPER */}
+            <div className="p-6 md:p-8 rounded-3xl bg-slate-900 border border-slate-800 space-y-6">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-slate-800">
+                <div>
+                  <h3 className="text-lg font-bold text-white flex items-center gap-2">
+                    <Building2 className="w-5 h-5 text-indigo-400" />
+                    <span>Import from Workday Career Portals</span>
+                  </h3>
+                  <p className="text-xs text-slate-400 mt-1">
+                    Extract live enterprise job postings directly from Workday single-page application APIs with full description and skill extraction.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 text-xs font-semibold">
+                    <Sparkles className="w-3.5 h-3.5" />
+                    Workday CXS API
+                  </span>
+                </div>
+              </div>
+
+              {/* Quick Presets */}
+              <div className="mt-6">
+                <label className="block text-xs font-semibold text-slate-400 mb-2">
+                  Quick-Import Presets (Enterprise Companies on Workday):
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {WORKDAY_PRESETS.map((p) => {
+                    const isSelected = workdayUrl.toLowerCase() === p.token.toLowerCase() || workdayUrl.toLowerCase() === p.url.toLowerCase();
+                    return (
+                      <button
+                        key={p.token}
+                        type="button"
+                        onClick={() => {
+                          setWorkdayUrl(p.url);
+                          setWorkdayCompany(p.name);
+                          setWorkdayPreview(null);
+                        }}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium transition flex items-center gap-1.5 ${
+                          isSelected
+                            ? 'bg-indigo-600 text-white font-bold shadow-md shadow-indigo-600/30'
+                            : 'bg-slate-800/80 text-slate-300 hover:bg-slate-700/80 border border-slate-700/60'
+                        }`}
+                      >
+                        <span>{p.name}</span>
+                        {p.isIndia && <span title="India Office / Hub" className="text-xs">🇮🇳</span>}
+                        <span className="text-[10px] opacity-70 font-mono">({p.token})</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Scraper Configuration Form */}
+              <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="lg:col-span-2">
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Workday Career URL or Preset Name <span className="text-indigo-400">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={workdayUrl}
+                    onChange={(e) => {
+                      const val = e.target.value.trim();
+                      setWorkdayUrl(val);
+                      setWorkdayPreview(null);
+                    }}
+                    placeholder="e.g. adobe or https://nvidia.wd5.myworkdayjobs.com/NVIDIAExternalCareerSite"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/90 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-indigo-400 transition"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Accepts full Workday portal URL or short preset name (e.g. <span className="text-slate-400">nvidia, adobe, salesforce, target</span>)
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Company Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={workdayCompany}
+                    onChange={(e) => setWorkdayCompany(e.target.value)}
+                    placeholder="e.g. Adobe"
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800/90 text-white text-xs placeholder:text-slate-500 focus:outline-none focus:border-indigo-400 transition"
+                  />
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Auto-detected if left blank
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-300 mb-1.5">
+                    Job Import Limit
+                  </label>
+                  <select
+                    value={workdayLimit}
+                    onChange={(e) => setWorkdayLimit(Number(e.target.value))}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-800 text-white text-xs focus:outline-none focus:border-indigo-400 transition"
+                  >
+                    <option value={10}>10 jobs</option>
+                    <option value={25}>25 jobs (Recommended)</option>
+                    <option value={50}>50 jobs</option>
+                    <option value={100}>100 jobs</option>
+                    <option value={0}>All available</option>
+                  </select>
+                  <p className="text-[10px] text-slate-500 mt-1">
+                    Paginates automatically
+                  </p>
+                </div>
+              </div>
+
+              {/* Filter & Sync Toggles */}
+              <div className="mt-5 p-4 rounded-2xl bg-slate-800/60 border border-slate-700/80 space-y-2.5">
+                <div className="flex items-center gap-2.5">
+                  <input
+                    type="checkbox"
+                    id="workdayIndiaOnlyCheck"
+                    checked={workdayIndiaOnly}
+                    onChange={(e) => setWorkdayIndiaOnly(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-0 w-4 h-4 cursor-pointer"
+                  />
+                  <label htmlFor="workdayIndiaOnlyCheck" className="text-xs font-bold text-indigo-300 select-none cursor-pointer flex items-center gap-1.5">
+                    <span>🇮🇳 India & Remote Only</span>
+                    <span className="text-[11px] font-normal text-slate-300">(Discards jobs physically located in US, UK, Europe, etc. or restricted to foreign remotes)</span>
+                  </label>
+                </div>
+
+                <div className="flex items-center gap-2 pl-6">
+                  <input
+                    type="checkbox"
+                    id="workdaySyncDeact"
+                    checked={workdaySyncDeactivations}
+                    onChange={(e) => setWorkdaySyncDeactivations(e.target.checked)}
+                    className="rounded border-slate-600 bg-slate-800 text-indigo-500 focus:ring-0 w-3.5 h-3.5 cursor-pointer"
+                  />
+                  <label htmlFor="workdaySyncDeact" className="text-xs text-slate-400 select-none cursor-pointer">
+                    Deactivate closed roles: mark past roles for this company not present in the new feed as inactive.
+                  </label>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="mt-6 flex flex-wrap items-center gap-3 pt-6 border-t border-slate-800">
+                <button
+                  type="button"
+                  onClick={handlePreviewWorkday}
+                  disabled={workdayPreviewing || workdayLoading}
+                  className="px-5 py-2.5 rounded-xl border border-slate-700 hover:bg-slate-800 text-white text-xs font-bold transition flex items-center gap-2 disabled:opacity-50"
+                >
+                  {workdayPreviewing ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-indigo-400" />
+                  ) : (
+                    <Search className="w-4 h-4 text-slate-400" />
+                  )}
+                  <span>Test & Preview First 3</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleImportWorkday}
+                  disabled={workdayLoading || workdayPreviewing}
+                  className="px-6 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-black transition flex items-center gap-2 shadow-lg shadow-indigo-600/30 disabled:opacity-50"
+                >
+                  {workdayLoading ? (
+                    <>
+                      <Loader2 className="w-4 h-4 animate-spin text-white" />
+                      <span>Scraping & Importing from Workday...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4 text-white" />
+                      <span>Import Workday Jobs</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* PREVIEW CARDS */}
+            {workdayPreview && (
+              <div className="space-y-4 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    <Search className="w-4 h-4 text-indigo-400" />
+                    Preview: Found {workdayPreview.totalFound} jobs at {workdayPreview.company}
+                  </h3>
+                  <span className="text-xs text-slate-400">
+                    Showing top {workdayPreview.sampleJobs?.length} sample listings (not saved yet)
+                  </span>
+                </div>
+
+                {workdayPreview.sampleJobs?.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-slate-900 border border-slate-800 text-center">
+                    <div className="w-12 h-12 rounded-full bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-3">
+                      <Building2 className="w-6 h-6" />
+                    </div>
+                    <h4 className="text-sm font-bold text-white mb-1">
+                      No India or Worldwide Remote jobs found at {workdayPreview.company}
+                    </h4>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto">
+                      All active openings at this company are currently restricted to foreign territories.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    {workdayPreview.sampleJobs?.map((pj: any, idx: number) => (
+                      <div
+                        key={idx}
+                        className="p-5 rounded-2xl bg-slate-900 border border-slate-800 hover:border-slate-700 transition flex flex-col justify-between space-y-3"
+                      >
+                        <div>
+                          <div className="flex items-start justify-between gap-2">
+                            <h4 className="text-sm font-bold text-white line-clamp-2">{pj.title}</h4>
+                            <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                              {pj.workMode}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1 flex items-center gap-1.5">
+                            <Building2 className="w-3.5 h-3.5 text-slate-500" />
+                            <span>{pj.company}</span>
+                            <span className="text-slate-600">•</span>
+                            <span>{pj.location}</span>
+                          </p>
+                        </div>
+
+                        <div className="space-y-2 text-xs">
+                          <div className="flex items-center justify-between text-slate-400 text-[11px]">
+                            <span>Category: <strong className="text-slate-200">{pj.category}</strong></span>
+                            <span>Salary: <strong className="text-slate-200">{pj.salary}</strong></span>
+                          </div>
+
+                          {pj.skills && pj.skills.length > 0 && (
+                            <div className="flex flex-wrap gap-1 pt-1">
+                              {pj.skills.slice(0, 5).map((sk: string) => (
+                                <span
+                                  key={sk}
+                                  className="px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] text-slate-300"
+                                >
+                                  {sk}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <a
+                          href={pj.originalUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-[11px] text-indigo-400 hover:underline flex items-center gap-1 pt-2 border-t border-slate-800/80"
+                        >
+                          <span>Official Workday link</span>
+                          <ExternalLink className="w-3 h-3" />
+                        </a>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* IMPORT SUCCESS RESULT BANNER */}
+            {workdayResult && (
+              <div className="p-6 rounded-3xl bg-emerald-950/30 border border-emerald-500/30 text-white space-y-4 animate-in fade-in duration-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-400 flex items-center justify-center">
+                      <CheckCircle2 className="w-6 h-6" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-emerald-300">
+                        Successfully imported listings from {workdayResult.company}!
+                      </h3>
+                      <p className="text-xs text-slate-400">
+                        Board: {workdayResult.boardToken} • Total on board: {workdayResult.totalFound}
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    onClick={() => {
+                      setJobsSearch(workdayResult.company);
+                      setActiveTab('manage_jobs');
+                      loadJobs(1);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-black transition flex items-center gap-1.5"
+                  >
+                    <span>View {workdayResult.company} Jobs</span>
+                    <ArrowLeft className="w-3.5 h-3.5 rotate-180" />
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
+                  <div className="p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Newly Added</span>
+                    <span className="text-xl font-black text-emerald-400 font-mono">+{workdayResult.imported}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Updated Existing</span>
+                    <span className="text-xl font-black text-sky-400 font-mono">{workdayResult.updated}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Deactivated (Closed)</span>
+                    <span className="text-xl font-black text-indigo-400 font-mono">{workdayResult.deactivated}</span>
+                  </div>
+                  <div className="p-3 rounded-xl bg-slate-900/80 border border-emerald-500/20 text-center">
+                    <span className="text-[10px] uppercase font-semibold text-slate-400 block">Failed / Skipped</span>
+                    <span className="text-xl font-black text-slate-400 font-mono">{workdayResult.skipped}</span>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
       </div>
 
       {/* EDIT JOB MODAL */}
