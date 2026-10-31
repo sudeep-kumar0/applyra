@@ -17,7 +17,12 @@ export class AdminGuard implements CanActivate {
       throw new UnauthorizedException('Authentication required');
     }
 
-    if (user.role !== UserRole.ADMIN) {
+    const isAdmin =
+      user.is_admin === true ||
+      (user as any).is_Admin === true ||
+      user.role === UserRole.ADMIN;
+
+    if (!isAdmin) {
       throw new ForbiddenException(
         'Access denied: Administrator privileges required for this resource',
       );
