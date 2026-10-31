@@ -18,7 +18,8 @@
     "scrape:greenhouse": "ts-node -r tsconfig-paths/register scripts/scrape-greenhouse.ts",
     "scrape:greenhouse:all": "ts-node -r tsconfig-paths/register scripts/scrape-all-greenhouse.ts",
     "verify-db": "node scripts/verify-db.js",
-    "get-token": "node scripts/get-token.js"
+    "get-token": "node scripts/get-token.js",
+    "scrape:workday:all": "ts-node -r tsconfig-paths/register scripts/scrape-all-workday.ts"
   },
   "dependencies": {
     "@nestjs/common": "^10.4.4",
