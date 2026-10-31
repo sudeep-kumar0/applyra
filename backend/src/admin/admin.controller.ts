@@ -18,6 +18,8 @@ import { UsersService } from '../users/users.service';
 import { JobsService } from '../jobs/jobs.service';
 import { GreenhouseScraperService } from '../jobs/scrapers/greenhouse.scraper';
 import { GreenhouseCronService } from '../jobs/greenhouse-cron.service';
+import { WorkdayScraperService } from '../jobs/scrapers/workday.scraper';
+import { WorkdayCronService } from '../jobs/workday-cron.service';
 import { ApplicationsService } from '../applications/applications.service';
 import { UserRole } from '../users/schemas/user.schema';
 
@@ -29,6 +31,8 @@ export class AdminController {
     private readonly jobsService: JobsService,
     private readonly greenhouseScraper: GreenhouseScraperService,
     private readonly greenhouseCron: GreenhouseCronService,
+    private readonly workdayScraper: WorkdayScraperService,
+    private readonly workdayCron: WorkdayCronService,
     private readonly applicationsService: ApplicationsService,
   ) {}
 
@@ -300,6 +304,98 @@ export class AdminController {
     return {
       success: true,
       message: `Batch scrape completed: ${result.totalImported} new jobs imported, ${result.totalUpdated} updated across ${result.successfulCompanies} companies`,
+      result,
+    };
+  }
+
+  // --- Workday Scraper Endpoints ---
+
+  @Get('scrape/workday/presets')
+  getWorkdayPresets() {
+    return {
+      success: true,
+      presets: this.workdayScraper.getPresets(),
+    };
+  }
+
+  @Get('scrape/workday/cron-status')
+  getWorkdayCronStatus() {
+    return {
+      success: true,
+      status: this.workdayCron.getStatus(),
+    };
+  }
+
+  @Post('scrape/workday/preview')
+  async previewWorkdayJobs(
+    @Body() body: { siteUrlOrToken: string; limit?: number; indiaOnly?: boolean },
+  ) {
+    if (!body.siteUrlOrToken || !body.siteUrlOrToken.trim()) {
+      throw new BadRequestException('siteUrlOrToken is required (URL or preset name)');
+    }
+    const result = await this.workdayScraper.previewJobs(
+      body.siteUrlOrToken.trim(),
+      body.limit || 3,
+      body.indiaOnly ?? true,
+    );
+    return {
+      success: true,
+      ...result,
+    };
+  }
+
+  @Post('scrape/workday/import')
+  async importWorkdayJobs(
+    @Body()
+    body: {
+      siteUrlOrToken: string;
+      companyName?: string;
+      companyLogo?: string;
+      limit?: number;
+      categoryOverride?: string;
+      syncDeactivations?: boolean;
+      indiaOnly?: boolean;
+    },
+  ) {
+    if (!body.siteUrlOrToken || !body.siteUrlOrToken.trim()) {
+      throw new BadRequestException('siteUrlOrToken is required (URL or preset name)');
+    }
+
+    const result = await this.workdayScraper.importJobs({
+      siteUrlOrToken: body.siteUrlOrToken.trim(),
+      companyName: body.companyName?.trim(),
+      companyLogo: body.companyLogo?.trim(),
+      limit: body.limit,
+      categoryOverride: body.categoryOverride?.trim(),
+      syncDeactivations: body.syncDeactivations ?? false,
+      indiaOnly: body.indiaOnly ?? true,
+    });
+
+    return {
+      success: true,
+      message: `Workday scraping completed: ${result.imported} new jobs imported, ${result.updated} updated, ${result.skipped} skipped/filtered`,
+      result,
+    };
+  }
+
+  @Post('scrape/workday/scrape-all')
+  async scrapeAllWorkday(
+    @Body()
+    body: {
+      indiaOnly?: boolean;
+      limit?: number;
+      syncDeactivations?: boolean;
+    },
+  ) {
+    const result = await this.workdayCron.runBatchScrape({
+      indiaOnly: body.indiaOnly !== false,
+      limit: body.limit,
+      syncDeactivations: body.syncDeactivations ?? true,
+    });
+
+    return {
+      success: true,
+      message: `Workday batch scrape completed: ${result.totalImported} new jobs imported, ${result.totalUpdated} updated across ${result.successfulCompanies} companies`,
       result,
     };
   }
