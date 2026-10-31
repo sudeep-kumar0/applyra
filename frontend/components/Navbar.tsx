@@ -40,7 +40,7 @@ interface NotificationItem {
 }
 
 export default function Navbar() {
-  const { user, mongoUser, isAdmin, logout } = useAuth();
+  const { user, mongoUser, profile, isAdmin, logout } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -79,7 +79,7 @@ export default function Navbar() {
     { label: 'Applications', href: '/applications' },
     { label: 'Saved Jobs', href: '/saved-jobs' },
     { label: 'Resume & ATS', href: '/resume' },
-    { label: 'Job Alerts', href: '/alerts' },
+    { label: 'Matched for You', href: '/alerts' },
     { label: 'Analytics', href: '/analytics' },
   ];
 
@@ -298,8 +298,16 @@ export default function Navbar() {
                     }}
                     className="flex items-center space-x-2 p-1.5 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                   >
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-600 to-teal-500 flex items-center justify-center text-white text-xs font-bold uppercase">
-                      {user.email ? user.email[0] : 'U'}
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-600 to-teal-500 flex items-center justify-center text-white text-xs font-bold uppercase overflow-hidden border border-slate-200/80 dark:border-slate-700">
+                      {profile?.profilePhoto ? (
+                        <img
+                          src={profile.profilePhoto}
+                          alt={profile.fullName || user.email || 'Avatar'}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <span>{user.email ? user.email[0] : 'U'}</span>
+                      )}
                     </div>
                     <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400 mr-1" />
                   </button>
