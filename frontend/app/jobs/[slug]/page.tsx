@@ -84,6 +84,10 @@ function CompanyLogoAvatar({
 }) {
   const [imageError, setImageError] = React.useState(false);
 
+  React.useEffect(() => {
+    setImageError(false);
+  }, [logo]);
+
   const words = (company || '?').trim().split(/\s+/).filter(Boolean);
   let initials = '';
   if (words.length >= 2) {
@@ -107,23 +111,24 @@ function CompanyLogoAvatar({
 
   const dimClasses =
     size === 'sm'
-      ? 'w-10 h-10 min-w-10 text-xs rounded-xl'
+      ? 'w-10 h-10 min-w-[2.5rem] text-xs rounded-xl'
       : size === 'lg'
-      ? 'w-14 h-14 min-w-14 text-base rounded-2xl'
-      : 'w-12 h-12 min-w-12 text-sm rounded-xl';
+      ? 'w-14 h-14 min-w-[3.5rem] text-base rounded-2xl'
+      : 'w-12 h-12 min-w-[3rem] text-sm rounded-xl';
 
-  if (logo && !imageError) {
+  const cleanLogo = logo && typeof logo === 'string' && logo.trim().length > 0 ? logo.trim() : null;
+
+  if (cleanLogo && !imageError) {
     return (
       <div
-        className={`${dimClasses} p-2 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 shadow-xs flex items-center justify-center flex-shrink-0 overflow-hidden`}
+        className={`${dimClasses} p-1.5 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 shadow-xs flex items-center justify-center flex-shrink-0 overflow-hidden`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={logo}
+          src={cleanLogo}
           alt={`${company} logo`}
           className="w-full h-full object-contain"
           onError={() => setImageError(true)}
-          loading="lazy"
         />
       </div>
     );
@@ -433,7 +438,9 @@ function JobDetailContent() {
         {/* Hero Card */}
         <div className="p-6 md:p-8 bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-sm mb-8">
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
-            <div className="space-y-3">
+            <div className="flex items-start gap-4 sm:gap-5 flex-1 min-w-0">
+              <CompanyLogoAvatar company={job.company} logo={job.companyLogo || (job as any).logo} size="lg" />
+              <div className="space-y-3 flex-1 min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 {/* Prominent Source Badge */}
                 <span
@@ -486,6 +493,7 @@ function JobDetailContent() {
                   </span>
                 )}
               </div>
+            </div>
             </div>
 
             {/* Action Buttons Column */}

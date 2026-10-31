@@ -91,6 +91,10 @@ function CompanyLogoAvatar({
 }) {
   const [imageError, setImageError] = React.useState(false);
 
+  React.useEffect(() => {
+    setImageError(false);
+  }, [logo]);
+
   const words = (company || '?').trim().split(/\s+/).filter(Boolean);
   let initials = '';
   if (words.length >= 2) {
@@ -114,23 +118,24 @@ function CompanyLogoAvatar({
 
   const dimClasses =
     size === 'sm'
-      ? 'w-10 h-10 min-w-10 text-xs rounded-xl'
+      ? 'w-10 h-10 min-w-[2.5rem] text-xs rounded-xl'
       : size === 'lg'
-      ? 'w-14 h-14 min-w-14 text-base rounded-2xl'
-      : 'w-12 h-12 min-w-12 text-sm rounded-xl';
+      ? 'w-14 h-14 min-w-[3.5rem] text-base rounded-2xl'
+      : 'w-12 h-12 min-w-[3rem] text-sm rounded-xl';
 
-  if (logo && !imageError) {
+  const cleanLogo = logo && typeof logo === 'string' && logo.trim().length > 0 ? logo.trim() : null;
+
+  if (cleanLogo && !imageError) {
     return (
       <div
         className={`${dimClasses} p-1.5 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 shadow-xs flex items-center justify-center flex-shrink-0 overflow-hidden`}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src={logo}
+          src={cleanLogo}
           alt={`${company} logo`}
           className="w-full h-full object-contain"
           onError={() => setImageError(true)}
-          loading="lazy"
         />
       </div>
     );
@@ -186,6 +191,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Java Full Stack Developer',
     slug: 'java-full-stack-developer-tcs-bengaluru',
     company: 'Tata Consultancy Services',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/tata-consultancy-services-logo.svg',
     location: 'Bengaluru, Karnataka',
     salary: '₹6–10 LPA',
     experience: '1-3 years',
@@ -202,6 +208,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Frontend React Developer',
     slug: 'frontend-react-developer-swiggy-bengaluru',
     company: 'Swiggy',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/swiggy-1.svg',
     location: 'Bengaluru (Remote Available)',
     salary: '₹12–18 LPA',
     experience: '2-4 years',
@@ -218,6 +225,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Backend Node.js Engineer',
     slug: 'backend-nodejs-engineer-razorpay-bengaluru',
     company: 'Razorpay',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/razorpay.svg',
     location: 'Bengaluru, Karnataka',
     salary: '₹14–22 LPA',
     experience: '2-5 years',
@@ -234,6 +242,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Cloud DevOps Engineer',
     slug: 'cloud-devops-engineer-flipkart-bengaluru',
     company: 'Flipkart',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/flipkart.svg',
     location: 'Bengaluru, Karnataka',
     salary: '₹15–24 LPA',
     experience: '2-5 years',
@@ -250,6 +259,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'QA Automation Engineer',
     slug: 'qa-automation-engineer-wipro-pune',
     company: 'Wipro Technologies',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/wipro-logo.svg',
     location: 'Pune, Maharashtra',
     salary: '₹5–8 LPA',
     experience: '1-3 years',
@@ -266,6 +276,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Data Analyst',
     slug: 'data-analyst-phonepe-bengaluru',
     company: 'PhonePe',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/phonepe-1.svg',
     location: 'Bengaluru, Karnataka',
     salary: '₹7–11 LPA',
     experience: '1-3 years',
@@ -282,6 +293,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Machine Learning Engineering Intern',
     slug: 'machine-learning-engineering-intern-zomato-gurugram',
     company: 'Zomato',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/zomato-1.svg',
     location: 'Gurugram, Haryana',
     salary: '₹40,000 / mo Stipend',
     experience: 'Fresher / Graduate',
@@ -955,9 +967,11 @@ function JobsContent() {
                   onClick={() => router.push(detailsLink)}
                   className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition cursor-pointer group/card"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                      <CompanyLogoAvatar company={job.company} logo={job.companyLogo || (job as any).logo} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                         {/* Source Badge */}
                         <span
                           className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${sourceBadgeColor(
@@ -992,6 +1006,7 @@ function JobsContent() {
                         {job.company}
                       </p>
                     </div>
+                  </div>
 
                     <button
                       onClick={(e) => {
@@ -1021,6 +1036,12 @@ function JobsContent() {
                     <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white">
                       <span>{job.salary}</span>
                     </div>
+                    {job.postedAt && (
+                      <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Posted {formatDatePosted(job.postedAt)}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-1.5">
