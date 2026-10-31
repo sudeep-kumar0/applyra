@@ -285,6 +285,7 @@ export class JobsService implements OnModuleInit {
     jobType?: string;
     experience?: string;
     source?: string;
+    datePosted?: string;
     sort?: string;
     page?: number;
     limit?: number;
@@ -328,6 +329,20 @@ export class JobsService implements OnModuleInit {
 
     if (params.experience && params.experience !== 'All') {
       query.experience = { $regex: params.experience, $options: 'i' };
+    }
+
+
+    if (params.datePosted && params.datePosted !== 'All' && params.datePosted !== 'all') {
+      const now = Date.now();
+      let msThreshold = 7 * 24 * 60 * 60 * 1000;
+      if (params.datePosted === '24h' || params.datePosted === '1d') {
+        msThreshold = 24 * 60 * 60 * 1000;
+      } else if (params.datePosted === 'week' || params.datePosted === '7d') {
+        msThreshold = 7 * 24 * 60 * 60 * 1000;
+      } else if (params.datePosted === 'month' || params.datePosted === '30d') {
+        msThreshold = 30 * 24 * 60 * 60 * 1000;
+      }
+      query.postedAt = { $gte: new Date(now - msThreshold) };
     }
 
     if (params.source && params.source !== 'All') {

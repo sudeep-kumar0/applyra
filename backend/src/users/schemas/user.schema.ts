@@ -19,6 +19,9 @@ export class User {
   @Prop({ required: true, enum: UserRole, default: UserRole.USER, index: true })
   role: UserRole;
 
+  @Prop({ type: Boolean, default: false, index: true })
+  is_admin: boolean;
+
   @Prop({ default: Date.now })
   lastLoginAt: Date;
 

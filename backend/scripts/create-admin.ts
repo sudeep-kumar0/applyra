@@ -137,6 +137,7 @@ async function createAdmin() {
         supabaseUserId: finalSupabaseId,
         email: normalizedEmail,
         role: UserRole.ADMIN,
+        is_admin: true,
         createdAt: now,
         updatedAt: now,
         lastLoginAt: now,
@@ -160,6 +161,7 @@ async function createAdmin() {
         {
           $set: {
             role: UserRole.ADMIN,
+            is_admin: true,
             ...(supabaseUserId && { supabaseUserId }),
             updatedAt: new Date(),
           },
