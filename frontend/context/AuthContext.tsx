@@ -18,14 +18,21 @@ export interface UserProfile {
   _id?: string;
   userId?: string;
   fullName: string;
+  profilePhoto?: string;
   headline?: string;
   location?: string;
   phone?: string;
   skills: string[];
+  preferredLocations?: string[];
+  preferredWorkMode?: string;
+  experienceLevel?: string;
   experience: any[];
   education: any[];
   bio?: string;
   profileCompletion: number;
+  resumeFileName?: string;
+  resumeUploadedAt?: string;
+  resumeKey?: string;
 }
 
 interface AuthContextType {
