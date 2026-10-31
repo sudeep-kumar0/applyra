@@ -7,7 +7,9 @@ import { User, UserDocument, UserRole } from './schemas/user.schema';
 export class UsersService {
   private readonly logger = new Logger(UsersService.name);
 
-  constructor(@InjectModel(User.name) private userModel: Model<UserDocument>) {}
+  constructor(
+    @InjectModel(User.name) private readonly userModel: Model<UserDocument>,
+  ) {}
 
   async findBySupabaseId(supabaseUserId: string): Promise<UserDocument | null> {
     return this.userModel.findOne({ supabaseUserId }).exec();
@@ -33,6 +35,7 @@ export class UsersService {
         supabaseUserId,
         email: normalizedEmail,
         role: UserRole.USER, // Mandatory default: NEVER allow client to choose ADMIN
+        is_admin: false, // Default is_admin to false
         lastLoginAt: new Date(),
       });
       await user.save();
@@ -49,7 +52,7 @@ export class UsersService {
     const normalizedEmail = email.toLowerCase().trim();
     const user = await this.userModel.findOneAndUpdate(
       { email: normalizedEmail },
-      { role },
+      { role, is_admin: role === UserRole.ADMIN },
       { new: true },
     );
     return user;

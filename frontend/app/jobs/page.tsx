@@ -17,6 +17,8 @@ import {
   Briefcase,
   X,
   Globe,
+  Clock,
+  Calendar,
   CheckCircle2,
   AlertCircle,
   ChevronDown,
@@ -30,6 +32,7 @@ interface JobListing {
   title: string;
   slug: string;
   company: string;
+  companyLogo?: string;
   location: string;
   salary: string;
   experience: string;
@@ -41,6 +44,111 @@ interface JobListing {
   description: string;
   originalUrl: string;
   postedAt: string;
+}
+
+const DATE_POSTED_OPTIONS = [
+  { label: 'Anytime', value: 'All' },
+  { label: 'Past 24 Hours', value: '24h' },
+  { label: 'Past Week (7 Days)', value: 'week' },
+  { label: 'Past Month (30 Days)', value: 'month' },
+];
+
+function formatDatePosted(dateString?: string): string {
+  if (!dateString) return 'Recently';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  if (diffMs < 0) return 'Just now';
+
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHours = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const diffWeeks = Math.floor(diffDays / 7);
+  const diffMonths = Math.floor(diffDays / 30);
+
+  if (diffSec < 60) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffWeeks === 1) return '1w ago';
+  if (diffWeeks < 4) return `${diffWeeks}w ago`;
+  if (diffMonths === 1) return '1mo ago';
+  return `${diffMonths}mo ago`;
+}
+
+function CompanyLogoAvatar({
+  company,
+  logo,
+  size = 'md',
+}: {
+  company: string;
+  logo?: string;
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  const [imageError, setImageError] = React.useState(false);
+
+  React.useEffect(() => {
+    setImageError(false);
+  }, [logo]);
+
+  const words = (company || '?').trim().split(/\s+/).filter(Boolean);
+  let initials = '';
+  if (words.length >= 2) {
+    initials = (words[0][0] + words[1][0]).toUpperCase();
+  } else if (words.length === 1 && words[0].length >= 2) {
+    initials = words[0].slice(0, 2).toUpperCase();
+  } else {
+    initials = (company || '?').slice(0, 2).toUpperCase();
+  }
+
+  const charCodeSum = (company || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const gradients = [
+    'from-blue-600 to-indigo-600',
+    'from-emerald-600 to-teal-600',
+    'from-violet-600 to-purple-600',
+    'from-amber-500 to-orange-600',
+    'from-rose-500 to-pink-600',
+    'from-cyan-600 to-blue-600',
+  ];
+  const bgGradient = gradients[charCodeSum % gradients.length];
+
+  const dimClasses =
+    size === 'sm'
+      ? 'w-10 h-10 min-w-[2.5rem] text-xs rounded-xl'
+      : size === 'lg'
+      ? 'w-14 h-14 min-w-[3.5rem] text-base rounded-2xl'
+      : 'w-12 h-12 min-w-[3rem] text-sm rounded-xl';
+
+  const cleanLogo = logo && typeof logo === 'string' && logo.trim().length > 0 ? logo.trim() : null;
+
+  if (cleanLogo && !imageError) {
+    return (
+      <div
+        className={`${dimClasses} p-1.5 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 shadow-xs flex items-center justify-center flex-shrink-0 overflow-hidden`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={cleanLogo}
+          alt={`${company} logo`}
+          className="w-full h-full object-contain"
+          onError={() => setImageError(true)}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`${dimClasses} bg-gradient-to-br ${bgGradient} text-white font-bold flex items-center justify-center flex-shrink-0 shadow-xs select-none`}
+      title={company}
+    >
+      <span>{initials}</span>
+    </div>
+  );
 }
 
 const CATEGORIES = [
@@ -83,6 +191,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Java Full Stack Developer',
     slug: 'java-full-stack-developer-tcs-bengaluru',
     company: 'Tata Consultancy Services',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/tata-consultancy-services-logo.svg',
     location: 'Bengaluru, Karnataka',
     salary: '₹6–10 LPA',
     experience: '1-3 years',
@@ -99,6 +208,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Frontend React Developer',
     slug: 'frontend-react-developer-swiggy-bengaluru',
     company: 'Swiggy',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/swiggy-1.svg',
     location: 'Bengaluru (Remote Available)',
     salary: '₹12–18 LPA',
     experience: '2-4 years',
@@ -115,6 +225,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Backend Node.js Engineer',
     slug: 'backend-nodejs-engineer-razorpay-bengaluru',
     company: 'Razorpay',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/razorpay.svg',
     location: 'Bengaluru, Karnataka',
     salary: '₹14–22 LPA',
     experience: '2-5 years',
@@ -131,6 +242,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Cloud DevOps Engineer',
     slug: 'cloud-devops-engineer-flipkart-bengaluru',
     company: 'Flipkart',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/flipkart.svg',
     location: 'Bengaluru, Karnataka',
     salary: '₹15–24 LPA',
     experience: '2-5 years',
@@ -147,6 +259,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'QA Automation Engineer',
     slug: 'qa-automation-engineer-wipro-pune',
     company: 'Wipro Technologies',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/wipro-logo.svg',
     location: 'Pune, Maharashtra',
     salary: '₹5–8 LPA',
     experience: '1-3 years',
@@ -163,6 +276,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Data Analyst',
     slug: 'data-analyst-phonepe-bengaluru',
     company: 'PhonePe',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/phonepe-1.svg',
     location: 'Bengaluru, Karnataka',
     salary: '₹7–11 LPA',
     experience: '1-3 years',
@@ -179,6 +293,7 @@ const FALLBACK_SEED_JOBS: JobListing[] = [
     title: 'Machine Learning Engineering Intern',
     slug: 'machine-learning-engineering-intern-zomato-gurugram',
     company: 'Zomato',
+    companyLogo: 'https://cdn.worldvectorlogo.com/logos/zomato-1.svg',
     location: 'Gurugram, Haryana',
     salary: '₹40,000 / mo Stipend',
     experience: 'Fresher / Graduate',
@@ -205,6 +320,7 @@ function JobsContent() {
   const [workMode, setWorkMode] = useState(searchParams.get('workMode') || 'All');
   const [jobType, setJobType] = useState(searchParams.get('jobType') || 'All');
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || 'All');
+  const [datePosted, setDatePosted] = useState<string>(searchParams.get('datePosted') || 'All');
   const [sort, setSort] = useState(searchParams.get('sort') || 'recent');
 
   // Pagination state
@@ -252,6 +368,7 @@ function JobsContent() {
     if (workMode !== 'All') params.set('workMode', workMode);
     if (jobType !== 'All') params.set('jobType', jobType);
     if (sourceFilter !== 'All') params.set('source', sourceFilter);
+    if (datePosted !== 'All') params.set('datePosted', datePosted);
     if (sort !== 'recent') params.set('sort', sort);
     if (currentPage > 1) params.set('page', String(currentPage));
 
@@ -260,14 +377,14 @@ function JobsContent() {
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', newPath);
     }
-  }, [search, location, category, workMode, jobType, sourceFilter, sort, currentPage]);
+  }, [search, location, category, workMode, jobType, sourceFilter, datePosted, sort, currentPage]);
 
   useEffect(() => {
     syncParamsToUrl();
   }, [syncParamsToUrl]);
 
   // When any filter/search changes (but NOT currentPage), reset to page 1
-  const prevFiltersRef = React.useRef({ search, location, category, workMode, jobType, sourceFilter, sort });
+  const prevFiltersRef = React.useRef({ search, location, category, workMode, jobType, sourceFilter, datePosted, sort });
   useEffect(() => {
     const prev = prevFiltersRef.current;
     const filtersChanged =
@@ -277,13 +394,14 @@ function JobsContent() {
       prev.workMode !== workMode ||
       prev.jobType !== jobType ||
       prev.sourceFilter !== sourceFilter ||
+      prev.datePosted !== datePosted ||
       prev.sort !== sort;
 
     if (filtersChanged) {
-      prevFiltersRef.current = { search, location, category, workMode, jobType, sourceFilter, sort };
+      prevFiltersRef.current = { search, location, category, workMode, jobType, sourceFilter, datePosted, sort };
       setCurrentPage(1);
     }
-  }, [search, location, category, workMode, jobType, sourceFilter, sort]);
+  }, [search, location, category, workMode, jobType, sourceFilter, datePosted, sort]);
 
   // Fetch jobs from backend REST API with fallback to local seed data
   useEffect(() => {
@@ -299,6 +417,7 @@ function JobsContent() {
         if (workMode !== 'All') query.append('workMode', workMode);
         if (jobType !== 'All') query.append('jobType', jobType);
         if (sourceFilter !== 'All') query.append('source', sourceFilter);
+        if (datePosted !== 'All') query.append('datePosted', datePosted);
         if (sort) query.append('sort', sort);
         query.append('page', String(currentPage));
         query.append('limit', String(pageSize));
@@ -348,6 +467,23 @@ function JobsContent() {
       if (jobType !== 'All') {
         filtered = filtered.filter((j) => j.jobType.toLowerCase() === jobType.toLowerCase());
       }
+      if (datePosted !== 'All') {
+        const now = Date.now();
+        const msThreshold =
+          datePosted === '24h'
+            ? 24 * 3600 * 1000
+            : datePosted === 'week'
+            ? 7 * 24 * 3600 * 1000
+            : datePosted === 'month'
+            ? 30 * 24 * 3600 * 1000
+            : 0;
+        if (msThreshold > 0) {
+          filtered = filtered.filter((j) => {
+            const t = new Date(j.postedAt).getTime();
+            return !isNaN(t) && now - t <= msThreshold;
+          });
+        }
+      }
       if (sourceFilter !== 'All') {
         filtered = filtered.filter(
           (j) => j.source.toLowerCase() === sourceFilter.toLowerCase(),
@@ -367,7 +503,7 @@ function JobsContent() {
     return () => {
       isCancelled = true;
     };
-  }, [search, location, category, workMode, jobType, sourceFilter, sort, currentPage]);
+  }, [search, location, category, workMode, jobType, sourceFilter, datePosted, sort, currentPage]);
 
   const handleSaveClick = async (job: JobListing) => {
     if (!user) {
@@ -529,12 +665,14 @@ function JobsContent() {
           {((category !== 'All' ? 1 : 0) +
             (workMode !== 'All' ? 1 : 0) +
             (jobType !== 'All' ? 1 : 0) +
-            (sourceFilter !== 'All' ? 1 : 0)) > 0 && (
+            (sourceFilter !== 'All' ? 1 : 0) +
+            (datePosted !== 'All' ? 1 : 0)) > 0 && (
             <span className="w-5 h-5 rounded-full bg-brand-600 text-white text-[10px] font-black flex items-center justify-center">
               {(category !== 'All' ? 1 : 0) +
-                (workMode !== 'All' ? 1 : 0) +
-                (jobType !== 'All' ? 1 : 0) +
-                (sourceFilter !== 'All' ? 1 : 0)}
+            (workMode !== 'All' ? 1 : 0) +
+            (jobType !== 'All' ? 1 : 0) +
+            (sourceFilter !== 'All' ? 1 : 0) +
+            (datePosted !== 'All' ? 1 : 0)}
             </span>
           )}
           <ChevronDown
@@ -545,15 +683,17 @@ function JobsContent() {
         </button>
 
         {((category !== 'All' ? 1 : 0) +
-          (workMode !== 'All' ? 1 : 0) +
-          (jobType !== 'All' ? 1 : 0) +
-          (sourceFilter !== 'All' ? 1 : 0)) > 0 && (
+            (workMode !== 'All' ? 1 : 0) +
+            (jobType !== 'All' ? 1 : 0) +
+            (sourceFilter !== 'All' ? 1 : 0) +
+            (datePosted !== 'All' ? 1 : 0)) > 0 && (
           <button
             onClick={() => {
               setCategory('All');
               setWorkMode('All');
               setJobType('All');
               setSourceFilter('All');
+              setDatePosted('All');
               setCurrentPage(1);
             }}
             className="text-xs text-brand-600 dark:text-brand-400 font-semibold hover:underline"
@@ -578,6 +718,7 @@ function JobsContent() {
                   setWorkMode('All');
                   setJobType('All');
                   setSourceFilter('All');
+                  setDatePosted('All');
                   setSearch('');
                   setLocation('');
                   setCurrentPage(1);
@@ -622,6 +763,36 @@ function JobsContent() {
                   </option>
                 ))}
               </select>
+            </div>
+
+            {/* Date Posted Filter */}
+            <div>
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider block mb-2 flex items-center justify-between">
+                <span>Date Posted</span>
+                {datePosted !== 'All' && (
+                  <button
+                    onClick={() => setDatePosted('All')}
+                    className="text-[11px] font-normal text-brand-600 dark:text-brand-400 hover:underline lowercase"
+                  >
+                    clear
+                  </button>
+                )}
+              </label>
+              <div className="space-y-1.5 text-xs">
+                {DATE_POSTED_OPTIONS.map((opt) => (
+                  <button
+                    key={opt.value}
+                    onClick={() => setDatePosted(opt.value)}
+                    className={`w-full text-left px-3 py-1.5 rounded-lg transition ${
+                      datePosted === opt.value
+                        ? 'bg-brand-50 text-brand-700 dark:bg-brand-950 dark:text-brand-300 font-semibold'
+                        : 'text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800'
+                    }`}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* Work Mode */}
@@ -680,6 +851,64 @@ function JobsContent() {
 
         {/* JOB LISTINGS */}
         <div className="lg:col-span-3 space-y-4">
+          {/* Quick Filter Shortcut Pills */}
+          <div className="flex flex-wrap items-center gap-2 pb-2">
+            <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider mr-1">
+              Quick:
+            </span>
+            <button
+              onClick={() => setDatePosted((prev) => (prev === 'week' ? 'All' : 'week'))}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition ${
+                datePosted === 'week'
+                  ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+              }`}
+            >
+              <span>⚡ Past Week (7 Days)</span>
+              {datePosted === 'week' && <X className="w-3 h-3" />}
+            </button>
+
+            <button
+              onClick={() => setDatePosted((prev) => (prev === '24h' ? 'All' : '24h'))}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition ${
+                datePosted === '24h'
+                  ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+              }`}
+            >
+              <span>Past 24 Hours</span>
+              {datePosted === '24h' && <X className="w-3 h-3" />}
+            </button>
+
+            <button
+              onClick={() => setWorkMode((prev) => (prev === 'Remote' ? 'All' : 'Remote'))}
+              className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border transition ${
+                workMode === 'Remote'
+                  ? 'bg-brand-600 text-white border-brand-600 shadow-xs'
+                  : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-300 dark:hover:border-slate-700'
+              }`}
+            >
+              <span>🌐 Remote</span>
+              {workMode === 'Remote' && <X className="w-3 h-3" />}
+            </button>
+
+            {(category !== 'All' || workMode !== 'All' || jobType !== 'All' || sourceFilter !== 'All' || datePosted !== 'All') && (
+              <button
+                onClick={() => {
+                  setCategory('All');
+                  setWorkMode('All');
+                  setJobType('All');
+                  setSourceFilter('All');
+                  setDatePosted('All');
+                  setCurrentPage(1);
+                }}
+                className="text-xs text-brand-600 dark:text-brand-400 hover:underline ml-auto"
+              >
+                Clear Filters
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center justify-between text-xs text-slate-500 pb-2">
             <span>
               {totalJobs > 0
@@ -738,9 +967,11 @@ function JobsContent() {
                   onClick={() => router.push(detailsLink)}
                   className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition cursor-pointer group/card"
                 >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex flex-wrap items-center gap-2 mb-2">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex items-start gap-3.5 flex-1 min-w-0">
+                      <CompanyLogoAvatar company={job.company} logo={job.companyLogo || (job as any).logo} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap items-center gap-2 mb-2">
                         {/* Source Badge */}
                         <span
                           className={`px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${sourceBadgeColor(
@@ -775,6 +1006,7 @@ function JobsContent() {
                         {job.company}
                       </p>
                     </div>
+                  </div>
 
                     <button
                       onClick={(e) => {
@@ -804,6 +1036,12 @@ function JobsContent() {
                     <div className="flex items-center gap-1.5 font-semibold text-slate-900 dark:text-white">
                       <span>{job.salary}</span>
                     </div>
+                    {job.postedAt && (
+                      <div className="flex items-center gap-1.5 text-slate-500 dark:text-slate-400">
+                        <Clock className="w-3.5 h-3.5 text-slate-400" />
+                        <span>Posted {formatDatePosted(job.postedAt)}</span>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 flex flex-wrap gap-1.5">
