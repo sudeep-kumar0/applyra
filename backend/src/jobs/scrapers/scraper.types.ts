@@ -38,6 +38,7 @@ export interface ScrapeImportOptions {
   limit?: number;
   categoryOverride?: string;
   syncDeactivations?: boolean;
+  indiaOnly?: boolean;
 }
 
 export interface ScrapeResult {
@@ -52,3 +53,14 @@ export interface ScrapeResult {
   jobs: any[];
 }
 
+export interface BatchScrapeResult {
+  totalCompanies: number;
+  successfulCompanies: number;
+  failedCompanies: number;
+  totalFound: number;
+  totalImported: number;
+  totalUpdated: number;
+  totalSkipped: number;
+  results: ScrapeResult[];
+  errors: Array<{ company: string; boardToken: string; error: string }>;
+}

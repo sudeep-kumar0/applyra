@@ -15,6 +15,7 @@
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
     "create-admin": "ts-node -r tsconfig-paths/register scripts/create-admin.ts",
     "scrape:greenhouse": "ts-node -r tsconfig-paths/register scripts/scrape-greenhouse.ts",
+    "scrape:greenhouse:all": "ts-node -r tsconfig-paths/register scripts/scrape-all-greenhouse.ts",
     "verify-db": "node scripts/verify-db.js",
     "get-token": "node scripts/get-token.js"
   },
@@ -24,6 +25,7 @@
     "@nestjs/core": "^10.4.4",
     "@nestjs/mongoose": "^10.0.10",
     "@nestjs/platform-express": "^10.4.4",
+    "@nestjs/schedule": "^4.1.2",
     "@supabase/supabase-js": "^2.45.6",
     "@types/multer": "^2.3.0",
     "class-transformer": "^0.5.1",

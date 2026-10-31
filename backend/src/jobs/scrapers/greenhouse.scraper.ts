@@ -7,35 +7,28 @@ import {
   GreenhouseJobResponse,
   ScrapeImportOptions,
   ScrapeResult,
+  BatchScrapeResult,
 } from './scraper.types';
 import { extractSkillsFromText } from './skills.constants';
+import {
+  GREENHOUSE_COMPANIES_REGISTRY,
+  isIndiaOrRemote,
+  GreenhouseCompanyPreset,
+} from './greenhouse-companies.constants';
 
 @Injectable()
 export class GreenhouseScraperService {
   private readonly logger = new Logger(GreenhouseScraperService.name);
 
-  // Popular companies with Greenhouse board tokens for quick 1-click import
-  public readonly PRESET_COMPANIES = [
-    { name: 'Figma', token: 'figma', logo: 'https://cdn.worldvectorlogo.com/logos/figma-5.svg', category: 'Software' },
-    { name: 'Cloudflare', token: 'cloudflare', logo: 'https://cdn.worldvectorlogo.com/logos/cloudflare-1.svg', category: 'DevOps/Cloud' },
-    { name: 'GitLab', token: 'gitlab', logo: 'https://cdn.worldvectorlogo.com/logos/gitlab.svg', category: 'DevOps/Cloud' },
-    { name: 'Reddit', token: 'reddit', logo: 'https://cdn.worldvectorlogo.com/logos/reddit-4.svg', category: 'Software' },
-    { name: 'Brex', token: 'brex', logo: 'https://cdn.worldvectorlogo.com/logos/brex.svg', category: 'Finance' },
-    { name: 'Datadog', token: 'datadog', logo: 'https://cdn.worldvectorlogo.com/logos/datadog.svg', category: 'DevOps/Cloud' },
-    { name: 'Gusto', token: 'gusto', logo: '', category: 'HR' },
-    { name: 'DoorDash', token: 'doordash', logo: 'https://cdn.worldvectorlogo.com/logos/doordash.svg', category: 'Software' },
-    { name: 'Robinhood', token: 'robinhood', logo: '', category: 'Finance' },
-    { name: 'Coinbase', token: 'coinbase', logo: 'https://cdn.worldvectorlogo.com/logos/coinbase-1.svg', category: 'Software' },
-    { name: 'HashiCorp', token: 'hashicorp', logo: '', category: 'DevOps/Cloud' },
-    { name: 'Vercel', token: 'vercel', logo: 'https://cdn.worldvectorlogo.com/logos/vercel.svg', category: 'Software' },
-  ];
+  // Registry of verified companies with Greenhouse board tokens
+  public readonly PRESET_COMPANIES: GreenhouseCompanyPreset[] = GREENHOUSE_COMPANIES_REGISTRY;
 
   constructor(@InjectModel(Job.name) private jobModel: Model<JobDocument>) {}
 
   /**
    * Returns list of preset companies
    */
-  getPresets() {
+  getPresets(): GreenhouseCompanyPreset[] {
     return this.PRESET_COMPANIES;
   }
 
@@ -57,7 +50,11 @@ export class GreenhouseScraperService {
    * Fetches raw jobs list from Greenhouse
    */
   async fetchRawJobs(boardToken: string): Promise<GreenhouseJobResponse> {
-    const cleanToken = boardToken.trim().toLowerCase().replace(/^https?:\/\/.*boards\.greenhouse\.io\//, '').replace(/\/.*$/, '');
+    const cleanToken = boardToken
+      .trim()
+      .toLowerCase()
+      .replace(/^https?:\/\/.*boards\.greenhouse\.io\//, '')
+      .replace(/\/.*$/, '');
     const url = `https://boards-api.greenhouse.io/v1/boards/${encodeURIComponent(cleanToken)}/jobs?content=true`;
 
     this.logger.log(`Fetching Greenhouse jobs from: ${url}`);
@@ -65,9 +62,13 @@ export class GreenhouseScraperService {
 
     if (!response.ok) {
       if (response.status === 404) {
-        throw new BadRequestException(`Greenhouse board '${cleanToken}' not found. Please verify the company board token.`);
+        throw new BadRequestException(
+          `Greenhouse board '${cleanToken}' not found. Please verify the company board token.`,
+        );
       }
-      throw new BadRequestException(`Greenhouse API error (${response.status}): ${response.statusText}`);
+      throw new BadRequestException(
+        `Greenhouse API error (${response.status}): ${response.statusText}`,
+      );
     }
 
     const data = (await response.json()) as GreenhouseJobResponse;
@@ -81,12 +82,31 @@ export class GreenhouseScraperService {
   /**
    * Previews up to `limit` parsed jobs without inserting into database
    */
-  async previewJobs(boardToken: string, limit: number = 3): Promise<{ company: string; totalFound: number; sampleJobs: Partial<Job>[] }> {
+  async previewJobs(
+    boardToken: string,
+    limit: number = 3,
+    indiaOnly: boolean = false,
+  ): Promise<{ company: string; totalFound: number; sampleJobs: Partial<Job>[] }> {
     const raw = await this.fetchRawJobs(boardToken);
     const boardInfo = await this.fetchBoardInfo(boardToken);
     const company = boardInfo?.name || boardToken;
 
-    const sample = raw.jobs.slice(0, Math.min(limit, raw.jobs.length)).map((rawJob) =>
+    let filteredJobs = raw.jobs;
+    if (indiaOnly) {
+      filteredJobs = raw.jobs.filter((rawJob) => {
+        const plainDesc = this.extractPlainText(
+          this.decodeHtmlEntities(rawJob.content || ''),
+        );
+        return isIndiaOrRemote(
+          rawJob.location?.name || '',
+          rawJob.title,
+          plainDesc,
+          rawJob.offices || [],
+        );
+      });
+    }
+
+    const sample = filteredJobs.slice(0, Math.min(limit, filteredJobs.length)).map((rawJob) =>
       this.normalizeJob(rawJob, {
         boardToken,
         companyName: company,
@@ -95,7 +115,7 @@ export class GreenhouseScraperService {
 
     return {
       company,
-      totalFound: raw.jobs.length,
+      totalFound: filteredJobs.length,
       sampleJobs: sample,
     };
   }
@@ -104,7 +124,7 @@ export class GreenhouseScraperService {
    * Scrapes and imports jobs from Greenhouse into MongoDB
    */
   async importJobs(options: ScrapeImportOptions): Promise<ScrapeResult> {
-    const { boardToken, limit, syncDeactivations } = options;
+    const { boardToken, limit, syncDeactivations, indiaOnly } = options;
     const raw = await this.fetchRawJobs(boardToken);
     const boardInfo = await this.fetchBoardInfo(boardToken);
 
@@ -115,8 +135,6 @@ export class GreenhouseScraperService {
     const companyName = options.companyName || preset?.name || boardInfo?.name || boardToken;
     const companyLogo = options.companyLogo || preset?.logo || '';
 
-    const jobsToProcess = limit && limit > 0 ? raw.jobs.slice(0, limit) : raw.jobs;
-
     let imported = 0;
     let updated = 0;
     let skipped = 0;
@@ -124,8 +142,30 @@ export class GreenhouseScraperService {
     const activeExternalIds: string[] = [];
     const savedJobs: any[] = [];
 
-    for (const rawJob of jobsToProcess) {
+    for (const rawJob of raw.jobs) {
+      // Check limit if specified
+      if (limit && limit > 0 && imported + updated >= limit) {
+        break;
+      }
+
       try {
+        const rawContent = this.decodeHtmlEntities(rawJob.content || '');
+        const plainDesc = this.extractPlainText(rawContent);
+
+        // Apply India & Remote filter if enabled
+        if (indiaOnly) {
+          const eligible = isIndiaOrRemote(
+            rawJob.location?.name || '',
+            rawJob.title,
+            plainDesc,
+            rawJob.offices || [],
+          );
+          if (!eligible) {
+            skipped++;
+            continue;
+          }
+        }
+
         const normalized = this.normalizeJob(rawJob, {
           ...options,
           companyName,
@@ -146,7 +186,8 @@ export class GreenhouseScraperService {
           existing.skills = normalized.skills;
           existing.location = normalized.location;
           existing.workMode = normalized.workMode;
-          existing.salary = normalized.salary !== 'Not disclosed' ? normalized.salary : existing.salary;
+          existing.salary =
+            normalized.salary !== 'Not disclosed' ? normalized.salary : existing.salary;
           existing.isActive = true;
           existing.originalUrl = normalized.originalUrl;
           await existing.save();
@@ -193,8 +234,78 @@ export class GreenhouseScraperService {
       updated,
       deactivated,
       skipped,
-      errors: errors.slice(0, 5), // return top 5 errors if any
+      errors: errors.slice(0, 5),
       jobs: savedJobs.slice(0, 10),
+    };
+  }
+
+  /**
+   * Batch scrapes all companies in the registry
+   */
+  async scrapeAllCompanies(
+    options: {
+      indiaOnly?: boolean;
+      limit?: number;
+      syncDeactivations?: boolean;
+    } = {},
+  ): Promise<BatchScrapeResult> {
+    const indiaOnly = options.indiaOnly !== false; // defaults to true
+    const results: ScrapeResult[] = [];
+    const errors: Array<{ company: string; boardToken: string; error: string }> = [];
+
+    let totalFound = 0;
+    let totalImported = 0;
+    let totalUpdated = 0;
+    let totalSkipped = 0;
+    let successfulCompanies = 0;
+
+    this.logger.log(
+      `Starting batch scrape across ${this.PRESET_COMPANIES.length} companies (India & Remote Only: ${indiaOnly})...`,
+    );
+
+    for (const company of this.PRESET_COMPANIES) {
+      try {
+        this.logger.log(`[Greenhouse] Scraping ${company.name} (${company.token})...`);
+        const result = await this.importJobs({
+          boardToken: company.token,
+          companyName: company.name,
+          companyLogo: company.logo,
+          categoryOverride: company.category,
+          limit: options.limit,
+          syncDeactivations: options.syncDeactivations ?? true,
+          indiaOnly,
+        });
+
+        results.push(result);
+        totalFound += result.totalFound;
+        totalImported += result.imported;
+        totalUpdated += result.updated;
+        totalSkipped += result.skipped;
+        successfulCompanies++;
+
+        this.logger.log(
+          `[Greenhouse] Completed ${company.name}: +${result.imported} imported, ${result.updated} updated, ${result.skipped} filtered/skipped (Total on board: ${result.totalFound})`,
+        );
+      } catch (err: any) {
+        this.logger.error(`[Greenhouse] Failed ${company.name} (${company.token}): ${err.message}`);
+        errors.push({
+          company: company.name,
+          boardToken: company.token,
+          error: err.message,
+        });
+      }
+    }
+
+    return {
+      totalCompanies: this.PRESET_COMPANIES.length,
+      successfulCompanies,
+      failedCompanies: errors.length,
+      totalFound,
+      totalImported,
+      totalUpdated,
+      totalSkipped,
+      results,
+      errors,
     };
   }
 
@@ -236,7 +347,18 @@ export class GreenhouseScraperService {
       'skills & experience',
     ]);
 
-    const locationName = rawJob.location?.name?.trim() || 'Remote';
+    let locationName = rawJob.location?.name?.trim() || '';
+    const officeNames = (rawJob.offices || [])
+      .map((o) => o.name || o.location)
+      .filter(Boolean)
+      .join(', ');
+
+    if (!locationName || ['in-office', 'hybrid', 'distributed', 'remote', ''].includes(locationName.toLowerCase())) {
+      if (officeNames) {
+        locationName = officeNames;
+      }
+    }
+    locationName = locationName || 'Remote';
     const workMode = this.detectWorkMode(rawJob.title, locationName, plainDescription);
     const jobType = this.detectJobType(rawJob.title, plainDescription);
 
@@ -257,17 +379,26 @@ export class GreenhouseScraperService {
       companyId: '',
       companyLogo: options.companyLogo || '',
       description: plainDescription || `${rawJob.title} at ${options.companyName}`,
-      responsibilities: responsibilities.length > 0 ? responsibilities : [
-        `Deliver high quality engineering and product impact at ${options.companyName}.`,
-        'Collaborate with cross-functional team members to execute roadmap priorities.',
-        'Contribute to design, technical reviews, and best practices across the organization.',
-      ],
-      qualifications: qualifications.length > 0 ? qualifications : [
-        'Relevant industry experience in modern software practices and technologies.',
-        'Strong problem-solving and clear verbal and written communication abilities.',
-        'Bachelor\'s degree or equivalent practical industry experience.',
-      ],
-      skills: skills.length > 0 ? skills.slice(0, 15) : ['Software Development', 'Problem Solving', 'Team Collaboration'],
+      responsibilities:
+        responsibilities.length > 0
+          ? responsibilities
+          : [
+              `Deliver high quality engineering and product impact at ${options.companyName}.`,
+              'Collaborate with cross-functional team members to execute roadmap priorities.',
+              'Contribute to design, technical reviews, and best practices across the organization.',
+            ],
+      qualifications:
+        qualifications.length > 0
+          ? qualifications
+          : [
+              'Relevant industry experience in modern software practices and technologies.',
+              'Strong problem-solving and clear verbal and written communication abilities.',
+              "Bachelor's degree or equivalent practical industry experience.",
+            ],
+      skills:
+        skills.length > 0
+          ? skills.slice(0, 15)
+          : ['Software Development', 'Problem Solving', 'Team Collaboration'],
       preferredSkills: [],
       location: locationName,
       salary,
@@ -335,7 +466,6 @@ export class GreenhouseScraperService {
     const bullets: string[] = [];
     if (!html) return bullets;
 
-    // Split HTML by headers and strong tags to find section boundaries
     const sections = html.split(/(?:<h[1-6][^>]*>|<strong>|<b\b)/i);
 
     for (const section of sections) {
@@ -346,36 +476,26 @@ export class GreenhouseScraperService {
       const isTargetSection = sectionKeywords.some((kw) => headerText.includes(kw.toLowerCase()));
 
       if (isTargetSection) {
-        // Extract <li> items
         const liMatches = section.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi);
         for (const match of liMatches) {
-          const itemText = this.extractPlainText(match[1]).trim();
-          if (itemText && itemText.length > 5 && !bullets.includes(itemText)) {
-            bullets.push(itemText);
+          const text = this.extractPlainText(match[1])
+            .replace(/^[\s•\-*–—]+/, '')
+            .trim();
+          if (text.length > 8 && text.length < 350) {
+            bullets.push(text);
           }
         }
       }
     }
 
-    // Fallback: If no section matched but page has <li>, grab up to 6 clean bullets
-    if (bullets.length === 0) {
-      const allLis = Array.from(html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi));
-      for (const match of allLis.slice(0, 6)) {
-        const itemText = this.extractPlainText(match[1]).trim();
-        if (itemText && itemText.length > 10 && !bullets.includes(itemText)) {
-          bullets.push(itemText);
-        }
-      }
-    }
-
-    return bullets.slice(0, 10);
+    return bullets.slice(0, 8);
   }
 
   /**
    * Detects workMode enum ('Remote' | 'Hybrid' | 'On-site')
    */
   private detectWorkMode(title: string, location: string, description: string): string {
-    const combined = `${title} ${location} ${description.slice(0, 1500)}`.toLowerCase();
+    const combined = `${title} ${location} ${description.slice(0, 500)}`.toLowerCase();
 
     if (
       combined.includes('remote') ||
@@ -399,11 +519,19 @@ export class GreenhouseScraperService {
   private detectJobType(title: string, description: string): string {
     const combined = `${title} ${description.slice(0, 800)}`.toLowerCase();
 
-    if (combined.includes('intern') || combined.includes('internship') || combined.includes('summer')) {
+    if (
+      combined.includes('intern') ||
+      combined.includes('internship') ||
+      combined.includes('summer')
+    ) {
       return 'Internship';
     }
 
-    if (combined.includes('contract') || combined.includes('freelance') || combined.includes('temporary')) {
+    if (
+      combined.includes('contract') ||
+      combined.includes('freelance') ||
+      combined.includes('temporary')
+    ) {
       return 'Contract';
     }
 
@@ -424,43 +552,105 @@ export class GreenhouseScraperService {
   private detectCategory(title: string, department: string): string {
     const text = `${title} ${department}`.toLowerCase();
 
-    if (text.includes('qa') || text.includes('quality') || text.includes('testing') || text.includes('sdet')) {
+    if (
+      text.includes('qa') ||
+      text.includes('quality') ||
+      text.includes('testing') ||
+      text.includes('sdet')
+    ) {
       return 'QA/Testing';
     }
-    if (text.includes('machine learning') || text.includes('ai') || text.includes('artificial intelligence') || text.includes('deep learning') || text.includes('nlp')) {
+    if (
+      text.includes('machine learning') ||
+      text.includes('ai') ||
+      text.includes('artificial intelligence') ||
+      text.includes('deep learning') ||
+      text.includes('nlp')
+    ) {
       return 'AI/ML';
     }
     if (text.includes('data') || text.includes('analytics') || text.includes('bi analyst')) {
       return 'Data';
     }
-    if (text.includes('devops') || text.includes('cloud') || text.includes('infrastructure') || text.includes('sre') || text.includes('platform engineer') || text.includes('site reliability')) {
+    if (
+      text.includes('devops') ||
+      text.includes('cloud') ||
+      text.includes('infrastructure') ||
+      text.includes('sre') ||
+      text.includes('platform engineer') ||
+      text.includes('site reliability')
+    ) {
       return 'DevOps/Cloud';
     }
-    if (text.includes('security') || text.includes('cyber') || text.includes('infosec') || text.includes('appsec')) {
+    if (
+      text.includes('security') ||
+      text.includes('cyber') ||
+      text.includes('infosec') ||
+      text.includes('appsec')
+    ) {
       return 'Cybersecurity';
     }
-    if (text.includes('support') || text.includes('helpdesk') || text.includes('it analyst') || text.includes('system admin')) {
+    if (
+      text.includes('support') ||
+      text.includes('helpdesk') ||
+      text.includes('it analyst') ||
+      text.includes('system admin')
+    ) {
       return 'IT Support';
     }
     if (text.includes('intern') || text.includes('co-op')) {
       return 'Internships';
     }
-    if (text.includes('sales') || text.includes('account executive') || text.includes('business development') || text.includes('bdr') || text.includes('sdr')) {
+    if (
+      text.includes('sales') ||
+      text.includes('account executive') ||
+      text.includes('business development') ||
+      text.includes('bdr') ||
+      text.includes('sdr')
+    ) {
       return 'Sales';
     }
-    if (text.includes('marketing') || text.includes('growth') || text.includes('seo') || text.includes('content')) {
+    if (
+      text.includes('marketing') ||
+      text.includes('growth') ||
+      text.includes('seo') ||
+      text.includes('content')
+    ) {
       return 'Marketing';
     }
-    if (text.includes('finance') || text.includes('accounting') || text.includes('tax') || text.includes('audit')) {
+    if (
+      text.includes('finance') ||
+      text.includes('accounting') ||
+      text.includes('tax') ||
+      text.includes('audit')
+    ) {
       return 'Finance';
     }
-    if (text.includes('hr') || text.includes('people') || text.includes('recruiting') || text.includes('talent')) {
+    if (
+      text.includes('hr') ||
+      text.includes('people') ||
+      text.includes('recruiting') ||
+      text.includes('talent')
+    ) {
       return 'HR';
     }
-    if (text.includes('operations') || text.includes('bizops') || text.includes('program manager')) {
+    if (
+      text.includes('operations') ||
+      text.includes('bizops') ||
+      text.includes('program manager')
+    ) {
       return 'Operations';
     }
-    if (text.includes('engineer') || text.includes('developer') || text.includes('software') || text.includes('frontend') || text.includes('backend') || text.includes('fullstack') || text.includes('architect') || text.includes('web')) {
+    if (
+      text.includes('engineer') ||
+      text.includes('developer') ||
+      text.includes('software') ||
+      text.includes('frontend') ||
+      text.includes('backend') ||
+      text.includes('fullstack') ||
+      text.includes('architect') ||
+      text.includes('web')
+    ) {
       return 'Software';
     }
 
@@ -471,15 +661,15 @@ export class GreenhouseScraperService {
    * Attempts to parse salary ranges from HTML or text
    */
   private extractSalary(html: string, text: string): string {
-    // Check for USD salary ranges like "$140,000 — $180,000 USD" or "$150,000 - $190,000"
-    const usdPattern = /\$[0-9]{2,3}(?:,[0-9]{3})*(?:\s*[-—to]+\s*\$[0-9]{2,3}(?:,[0-9]{3})*)?(?:\s*(?:USD|annually|per year))?/i;
+    const usdPattern =
+      /\$[0-9]{2,3}(?:,[0-9]{3})*(?:\s*[-—to]+\s*\$[0-9]{2,3}(?:,[0-9]{3})*)?(?:\s*(?:USD|annually|per year))?/i;
     const usdMatch = html.match(usdPattern) || text.match(usdPattern);
     if (usdMatch) {
       return usdMatch[0].trim();
     }
 
-    // Check for INR LPA ranges like "₹12–18 LPA" or "10-15 LPA"
-    const inrPattern = /(?:₹\s*)?[0-9]{1,2}(?:\.[0-9]+)?\s*[-–to]+\s*(?:₹\s*)?[0-9]{1,2}(?:\.[0-9]+)?\s*LPA/i;
+    const inrPattern =
+      /(?:₹\s*)?[0-9]{1,2}(?:\.[0-9]+)?\s*[-–to]+\s*(?:₹\s*)?[0-9]{1,2}(?:\.[0-9]+)?\s*LPA/i;
     const inrMatch = text.match(inrPattern);
     if (inrMatch) {
       return inrMatch[0].trim();
@@ -492,7 +682,8 @@ export class GreenhouseScraperService {
    * Attempts to parse experience requirements like "2-4 years"
    */
   private extractExperience(text: string): string {
-    const expPattern = /([0-9]{1,2})\s*(?:[-–to]+)\s*([0-9]{1,2})\s*(?:\+)?\s*years?(?:\s*of\s*experience)?/i;
+    const expPattern =
+      /([0-9]{1,2})\s*(?:[-–to]+)\s*([0-9]{1,2})\s*(?:\+)?\s*years?(?:\s*of\s*experience)?/i;
     const match = text.match(expPattern);
     if (match) {
       return `${match[1]}-${match[2]} years`;
@@ -507,4 +698,3 @@ export class GreenhouseScraperService {
     return '1-3 years';
   }
 }
-
