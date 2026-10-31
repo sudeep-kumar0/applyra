@@ -29,6 +29,7 @@ interface JobDetail {
   title: string;
   slug: string;
   company: string;
+  companyLogo?: string;
   description: string;
   responsibilities?: string[];
   skills: string[];
@@ -43,6 +44,99 @@ interface JobDetail {
   source: string;
   originalUrl: string;
   postedAt: string;
+}
+
+function formatDatePosted(dateString?: string): string {
+  if (!dateString) return 'Recently';
+  const date = new Date(dateString);
+  if (isNaN(date.getTime())) return dateString;
+
+  const now = Date.now();
+  const diffMs = now - date.getTime();
+  if (diffMs < 0) return 'Just now';
+
+  const diffSec = Math.floor(diffMs / 1000);
+  const diffMin = Math.floor(diffSec / 60);
+  const diffHours = Math.floor(diffMin / 60);
+  const diffDays = Math.floor(diffHours / 24);
+  const diffWeeks = Math.floor(diffDays / 7);
+  const diffMonths = Math.floor(diffDays / 30);
+
+  if (diffSec < 60) return 'Just now';
+  if (diffMin < 60) return `${diffMin}m ago`;
+  if (diffHours < 24) return `${diffHours}h ago`;
+  if (diffDays === 1) return 'Yesterday';
+  if (diffDays < 7) return `${diffDays}d ago`;
+  if (diffWeeks === 1) return '1w ago';
+  if (diffWeeks < 4) return `${diffWeeks}w ago`;
+  if (diffMonths === 1) return '1mo ago';
+  return `${diffMonths}mo ago`;
+}
+
+function CompanyLogoAvatar({
+  company,
+  logo,
+  size = 'md',
+}: {
+  company: string;
+  logo?: string;
+  size?: 'sm' | 'md' | 'lg';
+}) {
+  const [imageError, setImageError] = React.useState(false);
+
+  const words = (company || '?').trim().split(/\s+/).filter(Boolean);
+  let initials = '';
+  if (words.length >= 2) {
+    initials = (words[0][0] + words[1][0]).toUpperCase();
+  } else if (words.length === 1 && words[0].length >= 2) {
+    initials = words[0].slice(0, 2).toUpperCase();
+  } else {
+    initials = (company || '?').slice(0, 2).toUpperCase();
+  }
+
+  const charCodeSum = (company || '').split('').reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  const gradients = [
+    'from-blue-600 to-indigo-600',
+    'from-emerald-600 to-teal-600',
+    'from-violet-600 to-purple-600',
+    'from-amber-500 to-orange-600',
+    'from-rose-500 to-pink-600',
+    'from-cyan-600 to-blue-600',
+  ];
+  const bgGradient = gradients[charCodeSum % gradients.length];
+
+  const dimClasses =
+    size === 'sm'
+      ? 'w-10 h-10 min-w-10 text-xs rounded-xl'
+      : size === 'lg'
+      ? 'w-14 h-14 min-w-14 text-base rounded-2xl'
+      : 'w-12 h-12 min-w-12 text-sm rounded-xl';
+
+  if (logo && !imageError) {
+    return (
+      <div
+        className={`${dimClasses} p-2 bg-white dark:bg-slate-800 border border-slate-200/90 dark:border-slate-700/80 shadow-xs flex items-center justify-center flex-shrink-0 overflow-hidden`}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={logo}
+          alt={`${company} logo`}
+          className="w-full h-full object-contain"
+          onError={() => setImageError(true)}
+          loading="lazy"
+        />
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className={`${dimClasses} bg-gradient-to-br ${bgGradient} text-white font-bold flex items-center justify-center flex-shrink-0 shadow-xs select-none`}
+      title={company}
+    >
+      <span>{initials}</span>
+    </div>
+  );
 }
 
 const FALLBACK_JOBS_MAP: Record<string, JobDetail> = {
@@ -388,7 +482,7 @@ function JobDetailContent() {
                 {job.postedAt && (
                   <span className="flex items-center gap-1.5 text-slate-400">
                     <Clock className="w-3.5 h-3.5" />
-                    Posted {job.postedAt.includes('T') ? new Date(job.postedAt).toLocaleDateString() : job.postedAt}
+                    Posted {formatDatePosted(job.postedAt)}
                   </span>
                 )}
               </div>
