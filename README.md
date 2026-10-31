@@ -84,6 +84,7 @@ applyra/
 │   │   ├── storage/              # Supabase private storage integration
 │   │   └── common/               # Health check & exception sanitization
 │   └── scripts/
+│       ├── migrate-db.js         # Automated schema migration & backfill runner
 │       └── create-admin.ts       # Secure server-side CLI script to provision admins
 │
 ├── docs/                         # Technical specifications & guides
@@ -125,6 +126,7 @@ STORAGE_BUCKET=resumes
 ```bash
 cd backend
 npm install
+npm run db:migrate
 npm run start:dev
 ```
 Health Check: `http://localhost:5000/api/v1/health`  
@@ -142,7 +144,7 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ## 🛡️ Admin Security Policy
 
-- **No Public Admin Registration**: Public signups strictly assign `role = USER`.
+- **No Public Admin Registration**: Public signups strictly assign `role = USER` and `is_admin = false`.
 - **Backend Admin CLI**: To grant administrator rights to an account, run:
   ```bash
   cd backend

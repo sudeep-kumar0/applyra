@@ -26,7 +26,7 @@ cp .env.example .env
 Set the following values in `.env`:
 
 ```env
-# MongoDB Atlas
+# MongoDB Atlas (or local: mongodb://127.0.0.1:27017/applyra_dev)
 MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>.mongodb.net/applyra?retryWrites=true&w=majority
 
 # Supabase Auth & Storage
@@ -65,12 +65,17 @@ NEXT_PUBLIC_API_URL=http://localhost:5000/api/v1
    npm install
    ```
 
-3. Build the backend:
+3. Run Database Migrations (ensures latest fields, default values, and indexes are applied):
+   ```bash
+   npm run db:migrate
+   ```
+
+4. Build the backend:
    ```bash
    npm run build
    ```
 
-4. Start the backend in development mode:
+5. Start the backend in development mode:
    ```bash
    npm run start:dev
    ```
@@ -132,13 +137,13 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 ## 5. Provisioning an Administrator
 
 To protect administrative routes from unauthorized access:
-1. Public signups automatically receive `role = USER`.
+1. Public signups automatically receive `role = USER` and `is_admin = false`.
 2. To promote a user to `ADMIN`, execute the secure backend CLI command:
    ```bash
    cd backend
    npm run create-admin -- --email your-email@example.com
    ```
-3. When that user logs into Applyra, they will gain access to `/admin` and the Admin Console.
+3. When that user logs into Applyra, they will gain access to `/admin` and the Admin Console under their profile menu.
 
 ---
 
