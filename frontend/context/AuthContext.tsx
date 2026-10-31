@@ -10,6 +10,9 @@ export interface MongoUser {
   supabaseUserId: string;
   email: string;
   role: 'USER' | 'ADMIN';
+  is_admin?: boolean;
+  is_Admin?: boolean;
+  isAdmin?: boolean;
   lastLoginAt: string;
   createdAt: string;
 }
@@ -18,14 +21,21 @@ export interface UserProfile {
   _id?: string;
   userId?: string;
   fullName: string;
+  profilePhoto?: string;
   headline?: string;
   location?: string;
   phone?: string;
   skills: string[];
+  preferredLocations?: string[];
+  preferredWorkMode?: string;
+  experienceLevel?: string;
   experience: any[];
   education: any[];
   bio?: string;
   profileCompletion: number;
+  resumeFileName?: string;
+  resumeUploadedAt?: string;
+  resumeKey?: string;
 }
 
 interface AuthContextType {
@@ -69,6 +79,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           supabaseUserId: fallbackUser.id,
           email: fallbackUser.email || '',
           role: 'USER',
+          is_admin: false,
           lastLoginAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
         });
@@ -146,7 +157,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
   };
 
-  const isAdmin = mongoUser?.role === 'ADMIN';
+  const isAdmin = Boolean(
+    mongoUser?.is_admin === true ||
+    mongoUser?.is_Admin === true ||
+    mongoUser?.isAdmin === true ||
+    mongoUser?.role === 'ADMIN'
+  );
 
   return (
     <AuthContext.Provider

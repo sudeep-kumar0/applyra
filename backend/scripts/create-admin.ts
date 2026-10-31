@@ -5,6 +5,11 @@ import mongoose from 'mongoose';
 import { createClient } from '@supabase/supabase-js';
 import { UserRole } from '../src/users/schemas/user.schema';
 
+// Polyfill native WebSocket for Node < 22
+if (typeof (globalThis as any).WebSocket === 'undefined') {
+  (globalThis as any).WebSocket = class MockWebSocket {};
+}
+
 // Load environment variables
 dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
@@ -137,6 +142,7 @@ async function createAdmin() {
         supabaseUserId: finalSupabaseId,
         email: normalizedEmail,
         role: UserRole.ADMIN,
+        is_admin: true,
         createdAt: now,
         updatedAt: now,
         lastLoginAt: now,
@@ -153,19 +159,20 @@ async function createAdmin() {
         updatedAt: now,
       });
 
-      console.log(`🎉 Admin user created in MongoDB with role: ${UserRole.ADMIN}`);
+      console.log(`🎉 Admin user created in MongoDB with role: ${UserRole.ADMIN} and is_admin: true`);
     } else {
       await usersCollection.updateOne(
         { email: normalizedEmail },
         {
           $set: {
             role: UserRole.ADMIN,
+            is_admin: true,
             ...(supabaseUserId && { supabaseUserId }),
             updatedAt: new Date(),
           },
         },
       );
-      console.log(`🎉 User ${normalizedEmail} successfully promoted to role: ${UserRole.ADMIN}`);
+      console.log(`🎉 User ${normalizedEmail} successfully promoted to role: ${UserRole.ADMIN} with is_admin: true`);
     }
 
     await mongoose.disconnect();

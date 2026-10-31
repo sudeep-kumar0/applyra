@@ -33,6 +33,7 @@ export class UsersService {
         supabaseUserId,
         email: normalizedEmail,
         role: UserRole.USER, // Mandatory default: NEVER allow client to choose ADMIN
+        is_admin: false,
         lastLoginAt: new Date(),
       });
       await user.save();
@@ -45,14 +46,24 @@ export class UsersService {
     return user;
   }
 
-  async setUserRole(email: string, role: UserRole): Promise<UserDocument | null> {
+  async setUserRole(email: string, role: UserRole, is_admin?: boolean): Promise<UserDocument | null> {
     const normalizedEmail = email.toLowerCase().trim();
+    const adminFlag = is_admin !== undefined ? is_admin : role === UserRole.ADMIN;
     const user = await this.userModel.findOneAndUpdate(
       { email: normalizedEmail },
-      { role },
+      { role, is_admin: adminFlag },
       { new: true },
     );
     return user;
+  }
+
+  async setIsAdmin(email: string, is_admin: boolean): Promise<UserDocument | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    return this.userModel.findOneAndUpdate(
+      { email: normalizedEmail },
+      { is_admin, role: is_admin ? UserRole.ADMIN : UserRole.USER },
+      { new: true },
+    );
   }
 
   async countUsers(): Promise<number> {

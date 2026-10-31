@@ -41,7 +41,14 @@ export default function AdminLoginPage() {
         },
       });
 
-      if (!syncRes || !syncRes.user || syncRes.user.role !== 'ADMIN') {
+      const isUserAdmin = Boolean(
+        syncRes?.user?.is_admin === true ||
+        syncRes?.user?.is_Admin === true ||
+        syncRes?.user?.isAdmin === true ||
+        syncRes?.user?.role === 'ADMIN',
+      );
+
+      if (!syncRes || !syncRes.user || !isUserAdmin) {
         // Not an administrator: sign out immediately
         await supabase.auth.signOut();
         setErrorMsg(

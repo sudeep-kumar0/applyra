@@ -4,8 +4,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
-
-
 import Logo from './Logo';
 import { useAuth } from '@/context/AuthContext';
 import ThemeToggle from './ThemeToggle';
@@ -40,7 +38,7 @@ interface NotificationItem {
 }
 
 export default function Navbar() {
-  const { user, mongoUser, isAdmin, logout } = useAuth();
+  const { user, mongoUser, profile, isAdmin, logout } = useAuth();
   const pathname = usePathname();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
@@ -79,8 +77,9 @@ export default function Navbar() {
     { label: 'Applications', href: '/applications' },
     { label: 'Saved Jobs', href: '/saved-jobs' },
     { label: 'Resume & ATS', href: '/resume' },
-    { label: 'Job Alerts', href: '/alerts' },
+    { label: 'Matched for You', href: '/alerts' },
     { label: 'Analytics', href: '/analytics' },
+    ...(isAdmin ? [{ label: 'Admin Portal', href: '/admin' }] : []),
   ];
 
   const activeLinks = user ? authNavLinks : publicNavLinks;
@@ -149,17 +148,27 @@ export default function Navbar() {
           <nav className="hidden md:flex items-center space-x-1 lg:space-x-3">
             {activeLinks.map((link) => {
               const isActive = pathname === link.href;
+              const isAdminLink = link.href === '/admin';
               return (
                 <Link
                   key={link.href}
                   href={link.href}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                    isActive
+                    isAdminLink
+                      ? 'text-amber-600 dark:text-amber-400 bg-amber-500/10 border border-amber-500/20 font-bold hover:bg-amber-500/20'
+                      : isActive
                       ? 'text-brand-600 dark:text-brand-400 bg-brand-50/70 dark:bg-brand-950/40 font-semibold'
                       : 'text-slate-600 dark:text-slate-300 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800/60'
                   }`}
                 >
-                  {link.label}
+                  {isAdminLink ? (
+                    <span className="flex items-center gap-1.5">
+                      <Shield className="w-3.5 h-3.5 text-amber-500" />
+                      {link.label}
+                    </span>
+                  ) : (
+                    link.label
+                  )}
                 </Link>
               );
             })}
@@ -192,6 +201,16 @@ export default function Navbar() {
               </>
             ) : (
               <div className="flex items-center space-x-2">
+                {isAdmin && (
+                  <Link
+                    href="/admin"
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/20 transition shadow-sm"
+                  >
+                    <Shield className="w-3.5 h-3.5 text-amber-500" />
+                    <span>Admin Portal</span>
+                  </Link>
+                )}
+
                 {/* Notifications Bell Dropdown */}
                 <div className="relative">
                   <button
@@ -220,15 +239,15 @@ export default function Navbar() {
                     >
                       <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-slate-900 dark:text-white">
+                          <Bell className="w-4 h-4 text-brand-600" />
+                          <span className="font-bold text-sm text-slate-900 dark:text-white">
                             Notifications
                           </span>
-                          
                         </div>
                         {unreadCount > 0 && (
                           <button
                             onClick={handleMarkAllRead}
-                            className="text-[11px] font-semibold text-brand-600 dark:text-brand-400 hover:underline"
+                            className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
                           >
                             Mark all as read
                           </button>
@@ -238,52 +257,36 @@ export default function Navbar() {
                       <div className="max-h-80 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800">
                         {notifications.length === 0 ? (
                           <div className="p-6 text-center text-xs text-slate-400">
-                            No notifications yet. Activity updates will appear here.
+                            No notifications yet.
                           </div>
                         ) : (
                           notifications.map((n) => (
                             <div
                               key={n._id}
-                              className={`p-3 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/60 transition flex items-start justify-between gap-3 ${
-                                !n.read ? 'bg-brand-50/30 dark:bg-brand-950/20' : ''
+                              onClick={(e) => handleMarkAsRead(n._id, e)}
+                              className={`p-3 text-xs hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer transition flex items-start gap-3 ${
+                                !n.read ? 'bg-brand-50/40 dark:bg-brand-950/20' : ''
                               }`}
                             >
-                              <div className="space-y-1 flex-1">
-                                <div className="flex items-center gap-1.5">
-                                  {!n.read && (
-                                    <span className="w-2 h-2 rounded-full bg-brand-600 flex-shrink-0" />
-                                  )}
-                                  <h4 className="font-bold text-slate-900 dark:text-white">
-                                    {n.title}
-                                  </h4>
-                                </div>
-                                <p className="text-slate-600 dark:text-slate-300 text-[11px] leading-relaxed">
+                              <div
+                                className={`w-2 h-2 rounded-full mt-1.5 flex-shrink-0 ${
+                                  !n.read ? 'bg-brand-600' : 'bg-transparent'
+                                }`}
+                              />
+                              <div className="flex-1">
+                                <p className="font-semibold text-slate-800 dark:text-slate-200">
+                                  {n.title}
+                                </p>
+                                <p className="text-slate-500 dark:text-slate-400 mt-0.5">
                                   {n.message}
                                 </p>
-                                <span className="text-[10px] text-slate-400 block">
-                                  {new Date(n.createdAt).toLocaleTimeString([], {
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    day: 'numeric',
-                                    month: 'short',
-                                  })}
+                                <span className="text-[10px] text-slate-400 mt-1 block">
+                                  {new Date(n.createdAt).toLocaleDateString()}
                                 </span>
                               </div>
-
-
                             </div>
                           ))
                         )}
-                      </div>
-
-                      <div className="px-4 py-2 border-t border-slate-100 dark:border-slate-800 text-center">
-                        <Link
-                          href="/applications"
-                          onClick={() => setNotificationsOpen(false)}
-                          className="text-xs font-semibold text-brand-600 hover:underline"
-                        >
-                          View Application Tracker →
-                        </Link>
                       </div>
                     </div>
                   )}
@@ -298,17 +301,16 @@ export default function Navbar() {
                     }}
                     className="flex items-center space-x-2 p-1.5 rounded-full border border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
                   >
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-brand-600 to-teal-500 flex items-center justify-center text-white text-xs font-bold uppercase">
-                      {user.email ? user.email[0] : 'U'}
+                    <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-brand-600 to-teal-500 text-white flex items-center justify-center text-xs font-bold shadow-sm">
+                      {profile?.fullName ? profile.fullName.charAt(0).toUpperCase() : user.email?.charAt(0).toUpperCase()}
                     </div>
-                    <ChevronDown className="w-4 h-4 text-slate-500 dark:text-slate-400 mr-1" />
+                    <ChevronDown className="w-3.5 h-3.5 text-slate-500 mr-1" />
                   </button>
 
-                  {/* Dropdown Menu */}
                   {userDropdownOpen && (
                     <div
                       onMouseLeave={() => setUserDropdownOpen(false)}
-                      className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 shadow-xl border border-slate-200 dark:border-slate-800 py-2 z-50 animate-in fade-in zoom-in-95 duration-150"
+                      className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 shadow-2xl border border-slate-200 dark:border-slate-800 py-1.5 z-50 animate-in fade-in zoom-in-95 duration-150"
                     >
                       <div className="px-4 py-2 border-b border-slate-100 dark:border-slate-800">
                         <p className="text-xs text-slate-400">Signed in as</p>
@@ -355,7 +357,7 @@ export default function Navbar() {
                           onClick={() => setUserDropdownOpen(false)}
                           className="flex items-center px-4 py-2.5 text-sm text-amber-600 dark:text-amber-400 font-semibold hover:bg-amber-50 dark:hover:bg-amber-950/40"
                         >
-                          <Shield className="w-4 h-4 mr-2.5" />
+                          <Shield className="w-4 h-4 mr-2.5 text-amber-500" />
                           Admin Console
                         </Link>
                       )}
@@ -370,7 +372,7 @@ export default function Navbar() {
                         className="w-full text-left flex items-center px-4 py-2.5 text-sm text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/30"
                       >
                         <LogOut className="w-4 h-4 mr-2.5" />
-                        Sign Out
+                        Log out
                       </button>
                     </div>
                   )}
@@ -379,14 +381,8 @@ export default function Navbar() {
             )}
           </div>
 
-          {/* Mobile hamburger & theme toggle */}
+          {/* Mobile menu button */}
           <div className="flex md:hidden items-center space-x-2">
-            <ThemeToggle />
-            {user && unreadCount > 0 && (
-              <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-600 text-white">
-                {unreadCount}
-              </span>
-            )}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
               className="p-2 rounded-lg text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800"
