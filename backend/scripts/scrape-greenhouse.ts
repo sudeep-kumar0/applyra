@@ -9,7 +9,7 @@ dotenv.config({ path: path.resolve(__dirname, '../../.env') });
 dotenv.config({ path: path.resolve(__dirname, '../.env') });
 
 async function run() {
-  const args = process.argv.slice(2);
+  const args = process.argv.slice(2).filter((a) => a !== '--');
   let boardToken = '';
   let limit: number | undefined;
   let isDryRun = false;
