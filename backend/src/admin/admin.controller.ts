@@ -158,6 +158,14 @@ export class AdminController {
     return this.jobsService.deleteJob(id);
   }
 
+  @Post('jobs/bulk-delete')
+  async bulkDeleteJobs(@Body() body: { ids: string[] }) {
+    if (!body || !Array.isArray(body.ids) || body.ids.length === 0) {
+      throw new BadRequestException('An array of job IDs is required');
+    }
+    return this.jobsService.bulkDeleteJobs(body.ids);
+  }
+
   @Get('sources')
   async getSources() {
     const sources = await this.jobsService.getSourcesStats();

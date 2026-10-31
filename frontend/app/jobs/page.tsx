@@ -20,6 +20,8 @@ import {
   CheckCircle2,
   AlertCircle,
   ChevronDown,
+  ChevronRight,
+  ChevronLeft,
 } from 'lucide-react';
 
 interface JobListing {
@@ -205,6 +207,15 @@ function JobsContent() {
   const [sourceFilter, setSourceFilter] = useState(searchParams.get('source') || 'All');
   const [sort, setSort] = useState(searchParams.get('sort') || 'recent');
 
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState<number>(() => {
+    const p = searchParams.get('page');
+    return p ? Math.max(1, parseInt(p, 10)) : 1;
+  });
+  const [totalPages, setTotalPages] = useState<number>(1);
+  const [totalJobs, setTotalJobs] = useState<number>(0);
+  const pageSize = 12;
+
   const [jobs, setJobs] = useState<JobListing[]>(FALLBACK_SEED_JOBS);
   const [loading, setLoading] = useState(false);
   const [savedJobSlugs, setSavedJobSlugs] = useState<string[]>([]);
@@ -242,17 +253,37 @@ function JobsContent() {
     if (jobType !== 'All') params.set('jobType', jobType);
     if (sourceFilter !== 'All') params.set('source', sourceFilter);
     if (sort !== 'recent') params.set('sort', sort);
+    if (currentPage > 1) params.set('page', String(currentPage));
 
     const queryString = params.toString();
     const newPath = queryString ? `/jobs?${queryString}` : '/jobs';
     if (typeof window !== 'undefined') {
       window.history.replaceState(null, '', newPath);
     }
-  }, [search, location, category, workMode, jobType, sourceFilter, sort]);
+  }, [search, location, category, workMode, jobType, sourceFilter, sort, currentPage]);
 
   useEffect(() => {
     syncParamsToUrl();
   }, [syncParamsToUrl]);
+
+  // When any filter/search changes (but NOT currentPage), reset to page 1
+  const prevFiltersRef = React.useRef({ search, location, category, workMode, jobType, sourceFilter, sort });
+  useEffect(() => {
+    const prev = prevFiltersRef.current;
+    const filtersChanged =
+      prev.search !== search ||
+      prev.location !== location ||
+      prev.category !== category ||
+      prev.workMode !== workMode ||
+      prev.jobType !== jobType ||
+      prev.sourceFilter !== sourceFilter ||
+      prev.sort !== sort;
+
+    if (filtersChanged) {
+      prevFiltersRef.current = { search, location, category, workMode, jobType, sourceFilter, sort };
+      setCurrentPage(1);
+    }
+  }, [search, location, category, workMode, jobType, sourceFilter, sort]);
 
   // Fetch jobs from backend REST API with fallback to local seed data
   useEffect(() => {
@@ -269,14 +300,17 @@ function JobsContent() {
         if (jobType !== 'All') query.append('jobType', jobType);
         if (sourceFilter !== 'All') query.append('source', sourceFilter);
         if (sort) query.append('sort', sort);
-        query.append('limit', '50');
+        query.append('page', String(currentPage));
+        query.append('limit', String(pageSize));
 
         const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000/api/v1';
         const res = await fetch(`${apiUrl}/jobs?${query.toString()}`);
         if (res.ok) {
           const data = await res.json();
-          if (!isCancelled && data && Array.isArray(data.jobs) && data.jobs.length > 0) {
+          if (!isCancelled && data && Array.isArray(data.jobs)) {
             setJobs(data.jobs);
+            setTotalJobs(data.total !== undefined ? data.total : data.jobs.length);
+            setTotalPages(data.totalPages || Math.ceil((data.total || data.jobs.length) / pageSize) || 1);
             setLoading(false);
             return;
           }
@@ -319,7 +353,12 @@ function JobsContent() {
           (j) => j.source.toLowerCase() === sourceFilter.toLowerCase(),
         );
       }
-      setJobs(filtered);
+      const totalFiltered = filtered.length;
+      const startIdx = (currentPage - 1) * pageSize;
+      const paginatedFallback = filtered.slice(startIdx, startIdx + pageSize);
+      setJobs(paginatedFallback);
+      setTotalJobs(totalFiltered);
+      setTotalPages(Math.ceil(totalFiltered / pageSize) || 1);
       setLoading(false);
     }
 
@@ -328,7 +367,7 @@ function JobsContent() {
     return () => {
       isCancelled = true;
     };
-  }, [search, location, category, workMode, jobType, sourceFilter, sort]);
+  }, [search, location, category, workMode, jobType, sourceFilter, sort, currentPage]);
 
   const handleSaveClick = async (job: JobListing) => {
     if (!user) {
@@ -515,6 +554,7 @@ function JobsContent() {
               setWorkMode('All');
               setJobType('All');
               setSourceFilter('All');
+              setCurrentPage(1);
             }}
             className="text-xs text-brand-600 dark:text-brand-400 font-semibold hover:underline"
           >
@@ -540,6 +580,7 @@ function JobsContent() {
                   setSourceFilter('All');
                   setSearch('');
                   setLocation('');
+                  setCurrentPage(1);
                 }}
                 className="text-xs text-brand-600 dark:text-brand-400 hover:underline"
               >
@@ -641,7 +682,14 @@ function JobsContent() {
         <div className="lg:col-span-3 space-y-4">
           <div className="flex items-center justify-between text-xs text-slate-500 pb-2">
             <span>
-              Showing {jobs.length} open position{jobs.length !== 1 ? 's' : ''}
+              {totalJobs > 0
+                ? (
+                    totalPages > 1
+                      ? <>Showing <strong>{(currentPage - 1) * pageSize + 1}–{Math.min(currentPage * pageSize, totalJobs)}</strong> of <strong>{totalJobs}</strong> job{totalJobs !== 1 ? 's' : ''}</>
+                      : <><strong>{totalJobs}</strong> job{totalJobs !== 1 ? 's' : ''} found</>
+                  )
+                : 'No jobs found'
+              }
             </span>
             <div className="flex items-center gap-2">
               <span>Sort by:</span>
@@ -671,6 +719,7 @@ function JobsContent() {
                   setSourceFilter('All');
                   setSearch('');
                   setLocation('');
+                  setCurrentPage(1);
                 }}
                 className="mt-4 px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-semibold hover:bg-brand-700 transition"
               >
@@ -686,7 +735,8 @@ function JobsContent() {
               return (
                 <div
                   key={job.slug}
-                  className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md transition"
+                  onClick={() => router.push(detailsLink)}
+                  className="p-6 bg-white dark:bg-slate-900 rounded-2xl border border-slate-200/90 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-slate-300 dark:hover:border-slate-700 transition cursor-pointer group/card"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div className="flex-1 min-w-0">
@@ -716,7 +766,8 @@ function JobsContent() {
 
                       <Link
                         href={detailsLink}
-                        className="text-lg font-bold text-slate-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 transition"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-lg font-bold text-slate-900 dark:text-white hover:text-brand-600 dark:hover:text-brand-400 group-hover/card:text-brand-600 dark:group-hover/card:text-brand-400 transition"
                       >
                         {job.title}
                       </Link>
@@ -726,15 +777,18 @@ function JobsContent() {
                     </div>
 
                     <button
-                      onClick={() => handleSaveClick(job)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleSaveClick(job);
+                      }}
                       className={`p-2 rounded-xl border transition flex items-center justify-center flex-shrink-0 self-start ${
                         isSaved
-                          ? 'bg-brand-50 border-brand-300 text-brand-600'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          ? 'bg-brand-50/80 border-brand-200 text-brand-600 dark:bg-brand-950/70 dark:border-brand-800 dark:text-brand-400'
+                          : 'border-slate-200 dark:border-slate-800 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800/60'
                       }`}
                       title={user ? (isSaved ? 'Job saved' : 'Save job') : 'Login to save job'}
                     >
-                      <Bookmark className={`w-5 h-5 ${isSaved ? 'fill-brand-600' : ''}`} />
+                      <Bookmark className={`w-4 h-4 ${isSaved ? 'fill-brand-600 dark:fill-brand-400' : ''}`} />
                     </button>
                   </div>
 
@@ -769,25 +823,33 @@ function JobsContent() {
                   </div>
 
                   <div className="mt-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
-                        onClick={() => handleResumeMatchClick(job)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 text-xs font-semibold hover:bg-teal-100 transition"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleResumeMatchClick(job);
+                        }}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-teal-200 dark:border-teal-800 bg-teal-50 dark:bg-teal-950/60 text-teal-700 dark:text-teal-300 text-xs font-semibold hover:bg-teal-100 dark:hover:bg-teal-900/40 transition"
                       >
-                        <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                        <Sparkles className="w-3.5 h-3.5 text-teal-600 dark:text-teal-400" />
                         <span>Check Resume Match</span>
                       </button>
 
                       <Link
                         href={detailsLink}
-                        className="text-xs font-medium text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 px-2 py-1.5"
+                        onClick={(e) => e.stopPropagation()}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700/80 bg-slate-50/80 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700/80 hover:text-slate-900 dark:hover:text-white transition group/btn"
                       >
-                        Details & Requirements
+                        <span>Details & Requirements</span>
+                        <ChevronRight className="w-3.5 h-3.5 text-slate-400 group-hover/btn:translate-x-0.5 transition-transform" />
                       </Link>
                     </div>
 
                     <button
-                      onClick={() => handleApplyClick(job)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleApplyClick(job);
+                      }}
                       className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs shadow-sm transition"
                     >
                       <span>Apply Now</span>
@@ -797,6 +859,89 @@ function JobsContent() {
                 </div>
               );
             })
+          )}
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Showing <span className="font-semibold text-slate-800 dark:text-slate-200">{(currentPage - 1) * pageSize + 1}</span> to{' '}
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{Math.min(currentPage * pageSize, totalJobs)}</span> of{' '}
+                <span className="font-semibold text-slate-800 dark:text-slate-200">{totalJobs}</span> jobs
+              </p>
+
+              <div className="flex items-center gap-1.5">
+                <button
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.max(prev - 1, 1));
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  disabled={currentPage === 1}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                >
+                  <ChevronLeft className="w-3.5 h-3.5" />
+                  <span>Previous</span>
+                </button>
+
+                {/* Page Numbers */}
+                <div className="flex items-center gap-1">
+                  {Array.from({ length: totalPages }, (_, i) => i + 1)
+                    .filter((pageNum) => {
+                      return (
+                        pageNum === 1 ||
+                        pageNum === totalPages ||
+                        Math.abs(pageNum - currentPage) <= 1
+                      );
+                    })
+                    .reduce<(number | string)[]>((acc, pageNum, idx, arr) => {
+                      if (idx > 0 && pageNum - arr[idx - 1] > 1) {
+                        acc.push('...');
+                      }
+                      acc.push(pageNum);
+                      return acc;
+                    }, [])
+                    .map((item, idx) => {
+                      if (item === '...') {
+                        return (
+                          <span key={`dots-${idx}`} className="px-2 py-1 text-xs text-slate-400">
+                            ...
+                          </span>
+                        );
+                      }
+                      const pageNum = item as number;
+                      const isActive = pageNum === currentPage;
+                      return (
+                        <button
+                          key={pageNum}
+                          onClick={() => {
+                            setCurrentPage(pageNum);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className={`w-8 h-8 rounded-lg text-xs font-semibold transition ${
+                            isActive
+                              ? 'bg-brand-600 text-white shadow-sm'
+                              : 'text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          {pageNum}
+                        </button>
+                      );
+                    })}
+                </div>
+
+                <button
+                  onClick={() => {
+                    setCurrentPage((prev) => Math.min(prev + 1, totalPages));
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
+                  }}
+                  disabled={currentPage === totalPages}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 text-xs font-semibold text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 disabled:opacity-40 disabled:cursor-not-allowed transition flex items-center gap-1"
+                >
+                  <span>Next</span>
+                  <ChevronRight className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            </div>
           )}
         </div>
       </div>
