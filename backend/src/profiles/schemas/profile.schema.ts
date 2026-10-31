@@ -83,6 +83,9 @@ export class Profile {
   @Prop({ default: 'Any', enum: ['Any', 'Remote', 'Hybrid', 'On-site'] })
   preferredWorkMode: string;
 
+  @Prop({ default: '1-3 years' })
+  experienceLevel: string;
+
   @Prop({ default: '' })
   expectedSalary: string;
 
