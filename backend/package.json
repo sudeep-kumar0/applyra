@@ -13,6 +13,7 @@
     "start:debug": "nest start --debug --watch",
     "start:prod": "node dist/main",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\"",
+    "db:migrate": "node scripts/migrate-db.js",
     "create-admin": "ts-node -r tsconfig-paths/register scripts/create-admin.ts",
     "scrape:greenhouse": "ts-node -r tsconfig-paths/register scripts/scrape-greenhouse.ts",
     "scrape:greenhouse:all": "ts-node -r tsconfig-paths/register scripts/scrape-all-greenhouse.ts",

@@ -8,11 +8,13 @@ frontend\package-lock.json
 # Testing
 coverage/
 
-# Next.js
+# Next.js & TypeScript Build Cache
 .next/
 out/
 build/
 dist/
+*.tsbuildinfo
+.tsbuildinfo
 
 # Local database cache
 .mongodb_data/

@@ -1,6 +1,7 @@
 import { Controller, Get, Post, UseGuards, Request } from '@nestjs/common';
 import { SupabaseAuthGuard } from './supabase-auth.guard';
 import { ProfilesService } from '../profiles/profiles.service';
+import { UserRole } from '../users/schemas/user.schema';
 
 @Controller('auth')
 export class AuthController {
@@ -14,6 +15,12 @@ export class AuthController {
       fullName: req.supabaseUser.user_metadata?.full_name || '',
     });
 
+    const is_admin = Boolean(
+      user.is_admin === true ||
+      user.is_Admin === true ||
+      user.role === UserRole.ADMIN,
+    );
+
     return {
       success: true,
       user: {
@@ -21,6 +28,9 @@ export class AuthController {
         supabaseUserId: user.supabaseUserId,
         email: user.email,
         role: user.role,
+        is_admin,
+        is_Admin: is_admin,
+        isAdmin: is_admin,
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt,
       },
@@ -34,12 +44,21 @@ export class AuthController {
     const user = req.user;
     const profile = await this.profilesService.findByUserId(user._id);
 
+    const is_admin = Boolean(
+      user.is_admin === true ||
+      user.is_Admin === true ||
+      user.role === UserRole.ADMIN,
+    );
+
     return {
       user: {
         id: user._id,
         supabaseUserId: user.supabaseUserId,
         email: user.email,
         role: user.role,
+        is_admin,
+        is_Admin: is_admin,
+        isAdmin: is_admin,
         lastLoginAt: user.lastLoginAt,
         createdAt: user.createdAt,
       },
