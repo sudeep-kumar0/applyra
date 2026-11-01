@@ -26,6 +26,20 @@ export class ProfilesService {
         profileCompletion: this.calculateCompletion(initialData),
       });
       await profile.save();
+    } else {
+      let updated = false;
+      if (!profile.fullName && initialData.fullName) {
+        profile.fullName = initialData.fullName;
+        updated = true;
+      }
+      if (!profile.profilePhoto && initialData.profilePhoto) {
+        profile.profilePhoto = initialData.profilePhoto;
+        updated = true;
+      }
+      if (updated) {
+        profile.profileCompletion = this.calculateCompletion(profile);
+        await profile.save();
+      }
     }
 
     return profile;

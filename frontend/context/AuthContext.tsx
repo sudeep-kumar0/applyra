@@ -10,6 +10,8 @@ export interface MongoUser {
   supabaseUserId: string;
   email: string;
   role: 'USER' | 'ADMIN';
+  is_admin?: boolean;
+  isAdmin?: boolean;
   lastLoginAt: string;
   createdAt: string;
 }
@@ -44,6 +46,10 @@ interface AuthContextType {
   isAdmin: boolean;
   login: (email: string, password: string) => Promise<{ error: any; data: any }>;
   signup: (email: string, password: string, fullName: string) => Promise<{ error: any; data: any }>;
+  signInWithOAuth: (
+    provider: 'google' | 'linkedin_oidc',
+    redirectTo?: string,
+  ) => Promise<{ error: any; data: any }>;
   logout: () => Promise<void>;
   refreshProfile: () => Promise<void>;
 }
@@ -76,6 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           supabaseUserId: fallbackUser.id,
           email: fallbackUser.email || '',
           role: 'USER',
+          is_admin: false,
           lastLoginAt: new Date().toISOString(),
           createdAt: new Date().toISOString(),
         });
@@ -145,6 +152,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return res;
   };
 
+  const signInWithOAuth = async (
+    provider: 'google' | 'linkedin_oidc',
+    targetRedirect = '/dashboard',
+  ) => {
+    try {
+      const origin = typeof window !== 'undefined' ? window.location.origin : '';
+      const callbackUrl = `${origin}/auth/callback?redirect=${encodeURIComponent(targetRedirect)}`;
+
+      const res = await supabase.auth.signInWithOAuth({
+        provider,
+        options: {
+          redirectTo: callbackUrl,
+        },
+      });
+      return res;
+    } catch (err: any) {
+      return { error: err, data: null };
+    }
+  };
+
   const logout = async () => {
     await supabase.auth.signOut();
     setUser(null);
@@ -153,7 +180,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(null);
   };
 
-  const isAdmin = mongoUser?.role === 'ADMIN';
+  const isAdmin = Boolean(
+    mongoUser?.is_admin === true ||
+    mongoUser?.isAdmin === true ||
+    mongoUser?.role === 'ADMIN',
+  );
 
   return (
     <AuthContext.Provider
@@ -166,6 +197,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         isAdmin,
         login,
         signup,
+        signInWithOAuth,
         logout,
         refreshProfile,
       }}

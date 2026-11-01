@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '@/context/AuthContext';
 import Logo from '@/components/Logo';
+import SocialAuthButtons from '@/components/SocialAuthButtons';
 import { Mail, Lock, User, AlertCircle, CheckCircle, ArrowRight, Loader2 } from 'lucide-react';
 
 export default function SignupPage() {
@@ -47,7 +48,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-[85vh] flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8 bg-slate-50 dark:bg-slate-950">
-      <div className="max-w-md w-full space-y-8 p-8 bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800">
+      <div className="max-w-md w-full space-y-6 p-8 bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800">
         {verificationSent ? (
           /* Email Verification Confirmation State */
           <div className="text-center space-y-4">
@@ -97,6 +98,14 @@ export default function SignupPage() {
               </div>
             )}
 
+            {/* 1-Click Social Sign Up (Google) */}
+            <SocialAuthButtons
+              mode="signup"
+              redirectTo="/dashboard"
+              onError={(msg) => setErrorMsg(msg)}
+            />
+
+            {/* Email & Password Registration Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
@@ -157,7 +166,7 @@ export default function SignupPage() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm shadow-md transition disabled:opacity-50"
+                className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm shadow-md transition disabled:opacity-50 cursor-pointer"
               >
                 {loading ? (
                   <>
@@ -166,7 +175,7 @@ export default function SignupPage() {
                   </>
                 ) : (
                   <>
-                    <span>Create Free Account</span>
+                    <span>Create Account with Email</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

@@ -11,8 +11,17 @@ export class AuthController {
   @UseGuards(SupabaseAuthGuard)
   async syncUser(@Request() req: any) {
     const user = req.user;
+    const metadata = req.supabaseUser?.user_metadata || {};
+    const fullName =
+      metadata.full_name ||
+      metadata.name ||
+      [metadata.given_name, metadata.family_name].filter(Boolean).join(' ') ||
+      '';
+    const profilePhoto = metadata.avatar_url || metadata.picture || '';
+
     const profile = await this.profilesService.findOrCreate(user._id, {
-      fullName: req.supabaseUser.user_metadata?.full_name || '',
+      fullName,
+      profilePhoto,
     });
 
     const is_admin = Boolean(

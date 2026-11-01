@@ -2,6 +2,7 @@
 
 import React from 'react';
 import Link from 'next/link';
+import SocialAuthButtons from '@/components/SocialAuthButtons';
 import { X, Bookmark, FileText, Send, Sparkles, ShieldCheck } from 'lucide-react';
 
 export type ContextualAuthType =
@@ -31,6 +32,11 @@ export default function ContextualAuthModal({
   onContinueWithoutTracking,
 }: ContextualAuthModalProps) {
   if (!isOpen) return null;
+
+  const currentPath =
+    typeof window !== 'undefined'
+      ? window.location.pathname + window.location.search
+      : '/jobs';
 
   const contentMap: Record<
     ContextualAuthType,
@@ -96,7 +102,7 @@ export default function ContextualAuthModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 text-center">
+      <div className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl border border-slate-200 dark:border-slate-800 p-6 md:p-8 text-center">
         {/* Close button */}
         <button
           onClick={onClose}
@@ -107,7 +113,7 @@ export default function ContextualAuthModal({
         </button>
 
         {/* Icon */}
-        <div className="w-16 h-16 rounded-2xl bg-brand-50 dark:bg-brand-950/60 border border-brand-100 dark:border-brand-900 mx-auto flex items-center justify-center mb-5">
+        <div className="w-16 h-16 rounded-2xl bg-brand-50 dark:bg-brand-950/60 border border-brand-100 dark:border-brand-900 mx-auto flex items-center justify-center mb-4">
           {content.icon}
         </div>
 
@@ -115,31 +121,40 @@ export default function ContextualAuthModal({
         <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
           {content.title}
         </h3>
-        <p className="text-slate-600 dark:text-slate-300 text-sm leading-relaxed mb-6">
+        <p className="text-slate-600 dark:text-slate-300 text-xs leading-relaxed mb-5">
           {content.description}
         </p>
 
+        {/* 1-Click Social Sign In */}
+        <div className="mb-4 text-left">
+          <SocialAuthButtons
+            mode="signin"
+            redirectTo={currentPath}
+            onError={(msg) => alert(msg)}
+          />
+        </div>
+
         {/* Actions */}
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           <Link
             href="/signup"
             onClick={onClose}
-            className="w-full inline-flex items-center justify-center px-5 py-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm shadow-md shadow-brand-500/20 transition"
+            className="w-full inline-flex items-center justify-center px-5 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-xs shadow-md shadow-brand-500/20 transition"
           >
-            {content.primaryActionLabel}
+            {content.primaryActionLabel} with Email
           </Link>
 
           <Link
             href="/login"
             onClick={onClose}
-            className="w-full inline-flex items-center justify-center px-5 py-2.5 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium text-sm transition"
+            className="w-full inline-flex items-center justify-center px-5 py-2 rounded-xl border border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 font-medium text-xs transition"
           >
-            Already have an account? Sign In
+            Sign In with Email & Password
           </Link>
 
           <button
             onClick={onClose}
-            className="w-full text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 pt-1"
+            className="w-full text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 pt-1 cursor-pointer"
           >
             Continue Browsing Jobs
           </button>
