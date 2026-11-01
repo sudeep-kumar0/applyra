@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuth } from '@/context/AuthContext';
 import Logo from '@/components/Logo';
+import SocialAuthButtons from '@/components/SocialAuthButtons';
 import { Mail, Lock, AlertCircle, ArrowRight, Loader2 } from 'lucide-react';
 
 function LoginForm() {
@@ -41,7 +42,7 @@ function LoginForm() {
   };
 
   return (
-    <div className="max-w-md w-full space-y-8 p-8 bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800">
+    <div className="max-w-md w-full space-y-6 p-8 bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-slate-200 dark:border-slate-800">
       <div className="text-center">
         <div className="inline-block mb-3">
           <Logo size="lg" />
@@ -61,6 +62,14 @@ function LoginForm() {
         </div>
       )}
 
+      {/* 1-Click Social Sign In (Google) */}
+      <SocialAuthButtons
+        mode="signin"
+        redirectTo={redirectTo}
+        onError={(msg) => setErrorMsg(msg)}
+      />
+
+      {/* Email & Password Form */}
       <form onSubmit={handleSubmit} className="space-y-4">
         <div>
           <label className="block text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase tracking-wider mb-1.5">
@@ -107,7 +116,7 @@ function LoginForm() {
         <button
           type="submit"
           disabled={loading}
-          className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm shadow-md transition disabled:opacity-50"
+          className="w-full mt-2 inline-flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-semibold text-sm shadow-md transition disabled:opacity-50 cursor-pointer"
         >
           {loading ? (
             <>
@@ -116,7 +125,7 @@ function LoginForm() {
             </>
           ) : (
             <>
-              <span>Sign In to Applyra</span>
+              <span>Sign In with Email</span>
               <ArrowRight className="w-4 h-4" />
             </>
           )}
